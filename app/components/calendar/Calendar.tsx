@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { EventDropArg, DateSelectArg, PluginDef } from "@fullcalendar/core";
+import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { Event } from "./types";
 import TeacherSelector from "./TeacherSelector";
 import CalendarStyles from "./CalendarStyles";
@@ -263,6 +264,14 @@ export default function Calendar() {
         if (originalEvent.calendar_id) {
           await calendarApi.updateEvent(originalEvent.calendar_id, {
             lesson_id: originalEvent.id,
+            startDate: event.start.toISOString(),
+            endDate: event.end.toISOString(),
+            teacher_id: parseInt(originalEvent.resourceId || "0"),
+            student_id: originalEvent.student_id,
+            class_type: originalEvent.class_type,
+            class_status: originalEvent.class_status,
+            payment_status: originalEvent.payment_status,
+            duration: Math.round((event.end.getTime() - event.start.getTime()) / (1000 * 60)),
           });
         }
       } catch (error) {
@@ -270,6 +279,57 @@ export default function Calendar() {
         updateEvent(parseInt(event.id), originalEvent);
         dropInfo.revert();
         console.error("Error updating event:", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          response:
+            error instanceof Error && "response" in error
+              ? (error as { response?: { data: unknown } }).response?.data
+              : undefined,
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      }
+    },
+    [events, updateEvent]
+  );
+
+  const handleEventResize = useCallback(
+    async (resizeInfo: EventResizeDoneArg) => {
+      const { event } = resizeInfo;
+      if (!event.start || !event.end) return;
+
+      // Store original event for potential revert
+      const originalEvent = events.find((e) => e.id === parseInt(event.id));
+      if (!originalEvent) return;
+
+      // Create optimistic update
+      const optimisticEvent = {
+        ...originalEvent,
+        startDate: event.start.toISOString(),
+        endDate: event.end.toISOString(),
+      };
+
+      // Optimistically update the UI using Zustand
+      updateEvent(parseInt(event.id), optimisticEvent);
+
+      try {
+        // Update the calendar event
+        if (originalEvent.calendar_id) {
+          await calendarApi.updateEvent(originalEvent.calendar_id, {
+            lesson_id: originalEvent.id,
+            startDate: event.start.toISOString(),
+            endDate: event.end.toISOString(),
+            teacher_id: parseInt(originalEvent.resourceId || "0"),
+            student_id: originalEvent.student_id,
+            class_type: originalEvent.class_type,
+            class_status: originalEvent.class_status,
+            payment_status: originalEvent.payment_status,
+            duration: Math.round((event.end.getTime() - event.start.getTime()) / (1000 * 60)),
+          });
+        }
+      } catch (error) {
+        // Revert optimistic update on error
+        updateEvent(parseInt(event.id), originalEvent);
+        resizeInfo.revert();
+        console.error("Error resizing event:", {
           error: error instanceof Error ? error.message : "Unknown error",
           response:
             error instanceof Error && "response" in error
@@ -326,6 +386,8 @@ export default function Calendar() {
               events={processedEvents}
               select={handleSelect}
               eventDrop={handleEventDrop}
+              eventResize={handleEventResize}
+              eventResizableFromStart={true}
               height="100%"
               slotMinTime="00:00:00"
               slotMaxTime="24:00:00"

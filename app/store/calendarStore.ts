@@ -58,10 +58,30 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
 
   addEvent: (event) => set((state) => ({ events: [...state.events, event] })),
 
-  updateEvent: (eventId, updatedEvent) =>
+  updateEvent: async (eventId, updatedEvent) => {
+    // Optimistically update the UI
     set((state) => ({
       events: state.events.map((event) => (event.id === eventId ? { ...event, ...updatedEvent } : event)),
-    })),
+    }));
+
+    try {
+      // Get the event being updated
+      const event = get().events.find((e) => e.id === eventId);
+
+      if (event?.resourceId) {
+        // Call the API to update the event
+        await calendarApi.updateEvent(event.resourceId, {
+          lesson_id: eventId,
+        });
+      }
+    } catch (error) {
+      // Revert the optimistic update on error
+      set((state) => ({
+        events: state.events.map((event) => (event.id === eventId ? event : event)),
+      }));
+      console.error("Error updating event:", error);
+    }
+  },
 
   deleteEvent: (eventId) =>
     set((state) => ({

@@ -182,7 +182,7 @@ export const calendarApi = {
     return response.data;
   },
 
-  updateEvent: async (id: number, data: { lesson_id: number }) => {
+  updateEvent: async (id: string, data: { lesson_id: number }) => {
     const response = await api.put(`/calendar/events/${id}`, data);
     return response.data;
   },
