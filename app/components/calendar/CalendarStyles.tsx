@@ -137,9 +137,8 @@ export default function CalendarStyles() {
         padding: 0.25rem !important;
       }
 
-      /* Base styles for columns */
+      /* Smaller default min-width for columns */
       .fc-timegrid-col {
-        min-width: 200px !important;
         transition: width 0.3s ease !important;
       }
 
@@ -170,7 +169,6 @@ export default function CalendarStyles() {
       }
 
       .fc-scrollgrid {
-        min-width: 1000px !important;
         table-layout: auto !important;
       }
 

@@ -92,7 +92,7 @@ export default function Calendar() {
         });
 
         // Calculate new width based on overlap
-        const baseWidth = 200;
+        const baseWidth = window.innerWidth * 0.12; // 12vw per column, for example
         const widthPerEvent = 100;
         const newWidth = maxOverlap > 2 ? baseWidth + (maxOverlap - 2) * widthPerEvent : baseWidth;
 
@@ -147,48 +147,31 @@ export default function Calendar() {
   }, [calendarApi]);
 
   useEffect(() => {
-    // Wait for FullCalendar to render
     const adjustDayColumnWidths = () => {
-      // Select all day columns (skip the time axis column)
-      const columns = document.querySelectorAll(".fc-timegrid-col:not(.fc-timegrid-axis)");
+      const columns = document.querySelectorAll(".fc-timegrid-col[data-date]");
       columns.forEach((column) => {
-        // Find all events in this column
         const events = column.querySelectorAll(".fc-timegrid-event");
-        // Find the maximum number of overlapping events in any slot
-        const timeSlots = new Map();
-        events.forEach((event) => {
-          const start = event.getAttribute("data-start");
-          if (!start) return;
-          if (!timeSlots.has(start)) timeSlots.set(start, []);
-          timeSlots.get(start).push(event);
-        });
-        let maxOverlap = 1;
-        timeSlots.forEach((evts) => {
-          maxOverlap = Math.max(maxOverlap, evts.length);
-        });
-        // Set min-width based on overlap
-        const baseWidth = 200;
-        const widthPerEvent = 60;
-        const newWidth = maxOverlap > 2 ? baseWidth + (maxOverlap - 2) * widthPerEvent : baseWidth;
-        const colEl = column as HTMLElement;
-        colEl.style.minWidth = `${newWidth}px`;
-        colEl.style.width = `${newWidth}px`;
-        colEl.style.maxWidth = `${newWidth}px`;
+        const eventCount = events.length;
+        // Default width
+        const defaultWidth = 120;
+        // Only expand if more than 2 events
+        const expandedWidth = eventCount > 2 ? defaultWidth + (eventCount - 2) * 60 : defaultWidth;
+        column.style.minWidth = `${expandedWidth}px`;
+        column.style.width = `${expandedWidth}px`;
+        column.style.maxWidth = `400px`;
         // Also set the header cell width
         const date = column.getAttribute("data-date");
         if (date) {
-          const headerCell = document.querySelector(`th[data-date="${date}"]`) as HTMLElement;
+          const headerCell = document.querySelector(`th[data-date=\"${date}\"]`) as HTMLElement;
           if (headerCell) {
-            headerCell.style.minWidth = `${newWidth}px`;
-            headerCell.style.width = `${newWidth}px`;
-            headerCell.style.maxWidth = `${newWidth}px`;
+            headerCell.style.minWidth = `${expandedWidth}px`;
+            headerCell.style.width = `${expandedWidth}px`;
+            headerCell.style.maxWidth = `400px`;
           }
         }
       });
     };
-    // Run after a short delay to ensure DOM is ready
     setTimeout(adjustDayColumnWidths, 50);
-    // Optionally, rerun on window resize
     window.addEventListener("resize", adjustDayColumnWidths);
     return () => {
       window.removeEventListener("resize", adjustDayColumnWidths);
