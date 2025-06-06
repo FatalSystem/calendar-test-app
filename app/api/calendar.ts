@@ -1,64 +1,144 @@
 import axios from "axios";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: "/api/proxy", // Use our proxy instead of direct backend URL
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Add request interceptor to add auth token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    console.warn("No authentication token found. Some requests may fail.");
+  }
+  return config;
+});
+
+// Add response interceptor to handle token expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error("API Error:", {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      url: error.config?.url,
+    });
+
+    if (error.response?.status === 401) {
+      // Only redirect if we're not already on the login page
+      if (!window.location.pathname.includes("/login")) {
+        console.log("Authentication failed, redirecting to login page");
+        localStorage.removeItem("token");
+        window.location.href = "/";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+export interface Student {
+  id: number;
+  first_name: string;
+  last_name: string;
+}
+
+export interface ClassType {
+  id: number;
+  name: string;
+}
+
+export interface CalendarLink {
+  id: number;
+  calendar_id: number;
+  link: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface BackendLesson {
   id: number;
-  calendar_id: number;
   lesson_date: string;
+  class_status: string;
+  calendar_id: number;
   student_id: number;
   teacher_id: number;
   class_type_id: number;
-  class_status: string;
   start_time: string;
   end_time: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  Student?: Student;
+  Teacher?: BackendTeacher;
+  class_type?: ClassType;
+  CalendarLink?: CalendarLink | null;
+}
+
+export interface TeacherRate {
+  id: number;
+  teacher_id: number;
+  class_type_id: number;
+  rate: string;
   createdAt: string;
   updatedAt: string;
+  class_type: {
+    name: string;
+  };
 }
 
 export interface BackendTeacher {
   id: number;
-  name: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  status: string;
+  password: string;
+  token: string;
+  role_id: number;
+  resetToken: string | null;
+  resetTokenExpiry: string | null;
+  is_active: boolean;
   createdAt: string;
   updatedAt: string;
+  TeacherRates: TeacherRate[];
 }
 
 export const calendarApi = {
-  // Get all calendar events
-  getAllEvents: async () => {
-    const response = await axios.get(`${API_BASE_URL}/calendar/events`);
+  // Auth endpoints
+  login: async (email: string, password: string) => {
+    const response = await api.post("/auth/login", { email, password });
+    const { token, user } = response.data;
+    localStorage.setItem("token", token);
+    return { token, user };
+  },
+
+  // Calendar endpoints
+  getLessons: async () => {
+    const response = await api.get("/lessons");
     return response.data;
   },
 
-  // Save new event
-  saveEvent: async (event: Omit<BackendLesson, "id" | "createdAt" | "updatedAt">) => {
-    const response = await axios.post(`${API_BASE_URL}/calendar/events`, event);
+  getTeachers: async () => {
+    const response = await api.get("/teachers");
     return response.data;
   },
 
-  // Update event
-  updateEvent: async (id: number, event: Partial<BackendLesson>) => {
-    const response = await axios.put(`${API_BASE_URL}/calendar/events/${id}`, event);
+  createLesson: async (lesson: Omit<BackendLesson, "id" | "createdAt" | "updatedAt">) => {
+    const response = await api.post("/lessons", lesson);
     return response.data;
   },
 
-  // Delete event
-  deleteEvent: async (id: number) => {
-    const response = await axios.delete(`${API_BASE_URL}/calendar/events/${id}`);
+  updateLesson: async (id: number, lesson: Partial<BackendLesson>) => {
+    const response = await api.put(`/lessons/${id}`, lesson);
     return response.data;
   },
 
-  // Get lesson by calendar ID
-  getLessonByCalendarId: async (id: number) => {
-    const response = await axios.get(`${API_BASE_URL}/calendar/events/${id}/lesson`);
-    return response.data;
-  },
-
-  // Get all teachers
-  getAllTeachers: async () => {
-    const response = await axios.get(`${API_BASE_URL}/teachers`);
+  deleteLesson: async (id: number) => {
+    const response = await api.delete(`/lessons/${id}`);
     return response.data;
   },
 };

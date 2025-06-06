@@ -1,9 +1,11 @@
 "use client";
 
-import { Teacher } from "./types";
-
 interface TeacherSelectorProps {
-  teachers: Teacher[];
+  teachers: {
+    id: string;
+    name: string;
+    color: string;
+  }[];
   selectedTeachers: string[];
   onTeacherSelect: (teacherIds: string[]) => void;
 }

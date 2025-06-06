@@ -6,131 +6,162 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { CalendarApi, EventDropArg, DateSelectArg } from "@fullcalendar/core";
-import { Lesson, teachers, testLessons } from "./types";
+import { BackendLesson, BackendTeacher } from "./types";
 import TeacherSelector from "./TeacherSelector";
 import CalendarStyles from "./CalendarStyles";
+import { calendarApi } from "@/app/api/calendar";
 
 export default function Calendar() {
   const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
-  const [lessons, setLessons] = useState<Lesson[]>(testLessons);
+  const [lessons, setLessons] = useState<BackendLesson[]>([]);
+  const [teachers, setTeachers] = useState<BackendTeacher[]>([]);
   const [, setCalendarApi] = useState<CalendarApi | null>(null);
 
+  // Fetch teachers and lessons from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [backendLessonsData, backendTeachersData] = await Promise.all([
+          calendarApi.getLessons(),
+          calendarApi.getTeachers(),
+        ]);
+
+        setLessons(backendLessonsData);
+        setTeachers(backendTeachersData);
+
+        console.log("Backend Lessons:", backendLessonsData);
+        console.log("Backend Teachers:", backendTeachersData);
+      } catch (error) {
+        console.error("Error fetching calendar data:", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          response:
+            error instanceof Error && "response" in error
+              ? (error as { response?: { data: unknown } }).response?.data
+              : undefined,
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const handleSelect = useCallback(
-    (selectInfo: DateSelectArg) => {
+    async (selectInfo: DateSelectArg) => {
       const title = prompt("Please enter a title for your lesson:");
       if (title) {
-        const newLesson: Lesson = {
-          id: String(Date.now()),
-          title,
-          start: selectInfo.start,
-          end: selectInfo.end,
-          teacherId: selectedTeachers[0] || teachers[0].id,
-          teacherName: teachers.find((t) => t.id === (selectedTeachers[0] || teachers[0].id))?.name || "",
-          color: teachers.find((t) => t.id === (selectedTeachers[0] || teachers[0].id))?.color || "#3788d8",
-        };
-        setLessons((prev) => [...prev, newLesson]);
+        const selectedTeacher = teachers.find((t) => t.id === parseInt(selectedTeachers[0] || "0"));
+
+        try {
+          // Create lesson in backend
+          const newLesson = await calendarApi.createLesson({
+            calendar_id: 0,
+            lesson_date: selectInfo.start.toISOString().split("T")[0],
+            student_id: 5, // Default student ID
+            teacher_id: selectedTeacher?.id || teachers[0]?.id || 0,
+            class_type_id: 2, // Default to Regular-Lesson
+            class_status: "scheduled",
+            start_time: selectInfo.start.toTimeString().split(" ")[0],
+            end_time: selectInfo.end.toTimeString().split(" ")[0],
+          });
+
+          // Update local state with the new lesson
+          setLessons((prev) => [...prev, newLesson]);
+          console.log("Created lesson in backend:", newLesson);
+        } catch (error) {
+          console.error("Error creating lesson:", {
+            error: error instanceof Error ? error.message : "Unknown error",
+            response:
+              error instanceof Error && "response" in error
+                ? (error as { response?: { data: unknown } }).response?.data
+                : undefined,
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+        }
       }
     },
-    [selectedTeachers]
+    [selectedTeachers, teachers]
   );
 
-  const handleEventDrop = useCallback((dropInfo: EventDropArg) => {
+  const handleEventDrop = useCallback(async (dropInfo: EventDropArg) => {
     const { event } = dropInfo;
     if (!event.start || !event.end) return;
 
-    setLessons((prev) =>
-      prev.map((lesson) => (lesson.id === event.id ? { ...lesson, start: event.start!, end: event.end! } : lesson))
-    );
+    try {
+      // Update lesson in backend
+      await calendarApi.updateLesson(parseInt(event.id), {
+        lesson_date: event.start.toISOString().split("T")[0],
+        start_time: event.start.toTimeString().split(" ")[0],
+        end_time: event.end.toTimeString().split(" ")[0],
+      });
+
+      // Update local state
+      setLessons((prev) =>
+        prev.map((lesson) =>
+          lesson.id === parseInt(event.id)
+            ? {
+                ...lesson,
+                lesson_date: event.start!.toISOString().split("T")[0],
+                start_time: event.start!.toTimeString().split(" ")[0],
+                end_time: event.end!.toTimeString().split(" ")[0],
+              }
+            : lesson
+        )
+      );
+      console.log("Updated lesson in backend:", event.id);
+    } catch (error) {
+      console.error("Error updating lesson:", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        response:
+          error instanceof Error && "response" in error
+            ? (error as { response?: { data: unknown } }).response?.data
+            : undefined,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      // Revert the drag if backend update fails
+      dropInfo.revert();
+    }
   }, []);
 
   const processedEvents = useMemo(() => {
     return lessons
-      .filter((lesson) => selectedTeachers.includes(lesson.teacherId))
-      .map((lesson) => ({
-        id: lesson.id,
-        title: lesson.title,
-        start: lesson.start,
-        end: lesson.end,
-        backgroundColor: lesson.color,
-        borderColor: lesson.color,
-        extendedProps: {
-          teacherName: lesson.teacherName,
-          timeRange: `${lesson.start.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })} - ${lesson.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
-        },
-      }));
-  }, [lessons, selectedTeachers]);
+      .filter((lesson) => selectedTeachers.includes(String(lesson.teacher_id)))
+      .map((lesson) => {
+        const startDate = new Date(`${lesson.lesson_date}T${lesson.start_time}`);
+        const endDate = new Date(`${lesson.lesson_date}T${lesson.end_time}`);
 
-  useEffect(() => {
-    const adjustDayColumnWidths = () => {
-      const columns = document.querySelectorAll(".fc-timegrid-col[data-date]");
-      columns.forEach((column) => {
-        const columnElement = column as HTMLElement;
-        const events = columnElement.querySelectorAll(".fc-timegrid-event");
-
-        // Calculate max overlapping events
-        const eventRanges = Array.from(events).map((event) => {
-          const timeElement = event.querySelector(".fc-event-time");
-          const timeRange = timeElement?.textContent || "";
-          const [start, end] = timeRange.split(" - ").map((time) => {
-            const [hours, minutes] = time.split(":").map(Number);
-            return hours * 60 + minutes; // Convert to minutes for easier comparison
-          });
-          return { start, end, event };
-        });
-
-        // Find maximum overlap
-        let maxOverlap = 1;
-        for (let i = 0; i < eventRanges.length; i++) {
-          let currentOverlap = 1;
-          for (let j = 0; j < eventRanges.length; j++) {
-            if (i === j) continue;
-            // Check if events overlap
-            if (eventRanges[i].start < eventRanges[j].end && eventRanges[i].end > eventRanges[j].start) {
-              currentOverlap++;
-            }
-          }
-          maxOverlap = Math.max(maxOverlap, currentOverlap);
-        }
-
-        console.log("Event ranges:", eventRanges);
-        console.log("Max overlap:", maxOverlap);
-
-        // Default width
-        const defaultWidth = 120;
-        // Expand if more than 1 overlapping event (i.e., 2 or more events)
-        const expandedWidth = maxOverlap > 1 ? defaultWidth + (maxOverlap - 1) * 60 : defaultWidth;
-
-        columnElement.style.minWidth = `${expandedWidth}px`;
-        columnElement.style.width = `${expandedWidth}px`;
-        columnElement.style.maxWidth = `400px`;
-
-        // Also set the header cell width
-        const date = columnElement.getAttribute("data-date");
-        if (date) {
-          const headerCell = document.querySelector(`th[data-date=\"${date}\"]`) as HTMLElement;
-          if (headerCell) {
-            headerCell.style.minWidth = `${expandedWidth}px`;
-            headerCell.style.width = `${expandedWidth}px`;
-            headerCell.style.maxWidth = `400px`;
-          }
-        }
+        return {
+          id: String(lesson.id),
+          title: `${lesson.class_type?.name || "Lesson"} - ${lesson.Student?.first_name || ""} ${
+            lesson.Student?.last_name || ""
+          }`,
+          start: startDate,
+          end: endDate,
+          backgroundColor: "#3174ad",
+          borderColor: "#3174ad",
+          extendedProps: {
+            teacherName: `${lesson.Teacher?.first_name || ""} ${lesson.Teacher?.last_name || ""}`,
+            studentName: `${lesson.Student?.first_name || ""} ${lesson.Student?.last_name || ""}`,
+            classType: lesson.class_type?.name || "",
+            classStatus: lesson.class_status,
+            timeRange: `${startDate.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })} - ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+          },
+        };
       });
-    };
-    setTimeout(adjustDayColumnWidths, 50);
-    window.addEventListener("resize", adjustDayColumnWidths);
-    return () => {
-      window.removeEventListener("resize", adjustDayColumnWidths);
-    };
-  }, [processedEvents]);
+  }, [lessons, selectedTeachers]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <TeacherSelector
-          teachers={teachers}
+          teachers={teachers.map((t) => ({
+            id: String(t.id),
+            name: `${t.first_name} ${t.last_name}`,
+            color: "#3174ad",
+          }))}
           selectedTeachers={selectedTeachers}
           onTeacherSelect={setSelectedTeachers}
         />
@@ -176,7 +207,10 @@ export default function Calendar() {
                             ${eventInfo.event.title}
                           </div>
                           <div class="fc-event-details">
-                            <div class="fc-event-teacher">${extendedProps.teacherName}</div>
+                            <div class="fc-event-teacher">Teacher: ${extendedProps.teacherName}</div>
+                            <div class="fc-event-student">Student: ${extendedProps.studentName}</div>
+                            <div class="fc-event-class">Type: ${extendedProps.classType}</div>
+                            <div class="fc-event-status">Status: ${extendedProps.classStatus}</div>
                             <div class="fc-event-time">${extendedProps.timeRange}</div>
                           </div>
                         </div>
