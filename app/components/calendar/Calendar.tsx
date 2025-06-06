@@ -71,6 +71,123 @@ export default function Calendar() {
     fetchData();
   }, []);
 
+  const processedEvents = useMemo(() => {
+    console.log("Raw events from state:", events);
+    console.log("Selected teachers:", selectedTeachers);
+
+    const filteredEvents = events.filter((event) => {
+      const matches = selectedTeachers.includes(event.resourceId);
+      console.log("Event filter check:", {
+        eventId: event.id,
+        teacherId: event.resourceId,
+        selectedTeachers,
+        matches,
+      });
+      return matches;
+    });
+
+    console.log("Filtered events:", filteredEvents);
+
+    return filteredEvents
+      .map((event) => {
+        // Format dates for the calendar
+        const startDate = new Date(event.startDate);
+        const endDate = new Date(event.endDate);
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          console.error("Invalid date detected:", { event, startDate, endDate });
+          return null;
+        }
+
+        const calendarEvent = {
+          id: String(event.id),
+          title: event.name || event.class_type || "Event",
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+          backgroundColor: event.teacherColor || "#3174ad",
+          borderColor: event.teacherColor || "#3174ad",
+          extendedProps: {
+            teacherName: event.resourceId,
+            studentName: event.student_name_text || "",
+            classType: event.class_type || "",
+            classStatus: event.class_status,
+            timeRange: `${startDate.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })} - ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+          },
+        };
+        console.log("Processed calendar event:", calendarEvent);
+        return calendarEvent;
+      })
+      .filter((event): event is NonNullable<typeof event> => event !== null);
+  }, [events, selectedTeachers]);
+
+  useEffect(() => {
+    const adjustDayColumnWidths = () => {
+      const columns = document.querySelectorAll(".fc-timegrid-col[data-date]");
+      columns.forEach((column) => {
+        const columnElement = column as HTMLElement;
+        const events = columnElement.querySelectorAll(".fc-timegrid-event");
+
+        // Calculate max overlapping events
+        const eventRanges = Array.from(events).map((event) => {
+          const timeElement = event.querySelector(".fc-event-time");
+          const timeRange = timeElement?.textContent || "";
+          const [start, end] = timeRange.split(" - ").map((time) => {
+            const [hours, minutes] = time.split(":").map(Number);
+            return hours * 60 + minutes; // Convert to minutes for easier comparison
+          });
+          return { start, end, event };
+        });
+
+        // Find maximum overlap
+        let maxOverlap = 1;
+        for (let i = 0; i < eventRanges.length; i++) {
+          let currentOverlap = 1;
+          for (let j = 0; j < eventRanges.length; j++) {
+            if (i === j) continue;
+            // Check if events overlap
+            if (eventRanges[i].start < eventRanges[j].end && eventRanges[i].end > eventRanges[j].start) {
+              currentOverlap++;
+            }
+          }
+          maxOverlap = Math.max(maxOverlap, currentOverlap);
+        }
+
+        console.log("Event ranges:", eventRanges);
+        console.log("Max overlap:", maxOverlap);
+
+        // Default width
+        const defaultWidth = 120;
+        // Only expand if more than 2 overlapping events
+        const expandedWidth = maxOverlap > 1 ? defaultWidth + (maxOverlap - 2) * 60 : defaultWidth;
+
+        columnElement.style.minWidth = `${expandedWidth}px`;
+        columnElement.style.width = `${expandedWidth}px`;
+        columnElement.style.maxWidth = `400px`;
+
+        // Also set the header cell width
+        const date = columnElement.getAttribute("data-date");
+        if (date) {
+          const headerCell = document.querySelector(`th[data-date=\"${date}\"]`) as HTMLElement;
+          if (headerCell) {
+            headerCell.style.minWidth = `${expandedWidth}px`;
+            headerCell.style.width = `${expandedWidth}px`;
+            headerCell.style.maxWidth = `400px`;
+          }
+        }
+      });
+    };
+    setTimeout(adjustDayColumnWidths, 50);
+    window.addEventListener("resize", adjustDayColumnWidths);
+    return () => {
+      window.removeEventListener("resize", adjustDayColumnWidths);
+    };
+  }, [processedEvents]);
+
+  console.log("Final processed events:", processedEvents);
+
   const handleSelect = useCallback(
     async (selectInfo: DateSelectArg) => {
       const title = prompt("Please enter a title for your event:");
@@ -179,60 +296,6 @@ export default function Calendar() {
     },
     [events]
   );
-
-  const processedEvents = useMemo(() => {
-    console.log("Raw events from state:", events);
-    console.log("Selected teachers:", selectedTeachers);
-
-    const filteredEvents = events.filter((event) => {
-      const matches = selectedTeachers.includes(event.resourceId);
-      console.log("Event filter check:", {
-        eventId: event.id,
-        teacherId: event.resourceId,
-        selectedTeachers,
-        matches,
-      });
-      return matches;
-    });
-
-    console.log("Filtered events:", filteredEvents);
-
-    return filteredEvents
-      .map((event) => {
-        // Format dates for the calendar
-        const startDate = new Date(event.startDate);
-        const endDate = new Date(event.endDate);
-
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-          console.error("Invalid date detected:", { event, startDate, endDate });
-          return null;
-        }
-
-        const calendarEvent = {
-          id: String(event.id),
-          title: event.name || event.class_type || "Event",
-          start: startDate.toISOString(),
-          end: endDate.toISOString(),
-          backgroundColor: event.teacherColor || "#3174ad",
-          borderColor: event.teacherColor || "#3174ad",
-          extendedProps: {
-            teacherName: event.resourceId,
-            studentName: event.student_name_text || "",
-            classType: event.class_type || "",
-            classStatus: event.class_status,
-            timeRange: `${startDate.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })} - ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
-          },
-        };
-        console.log("Processed calendar event:", calendarEvent);
-        return calendarEvent;
-      })
-      .filter((event): event is NonNullable<typeof event> => event !== null);
-  }, [events, selectedTeachers]);
-
-  console.log("Final processed events:", processedEvents);
 
   if (plugins.length === 0) {
     return <div>Loading calendar plugins...</div>;
