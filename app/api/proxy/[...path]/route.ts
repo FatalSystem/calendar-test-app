@@ -2,15 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = "https://test-account.amdream.us/api";
 
-type RouteContext = {
-  params: {
-    path: string[];
-  };
-};
-
-export async function GET(request: NextRequest, context: RouteContext): Promise<NextResponse> {
+export async function GET(request: NextRequest, { params }: { params: { path: string[] } }): Promise<NextResponse> {
   try {
-    const path = context.params.path.join("/");
+    const path = params.path.join("/");
     const searchParams = request.nextUrl.searchParams.toString();
     const url = `${BACKEND_URL}/${path}${searchParams ? `?${searchParams}` : ""}`;
 
@@ -57,7 +51,7 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
     console.error("Proxy GET Error:", {
       error: error instanceof Error ? error.message : "Unknown error",
       stack: error instanceof Error ? error.stack : undefined,
-      url: `${BACKEND_URL}/${context.params.path.join("/")}`,
+      url: `${BACKEND_URL}/${params.path.join("/")}`,
     });
     return NextResponse.json(
       {
@@ -69,9 +63,9 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
   }
 }
 
-export async function POST(request: NextRequest, context: RouteContext): Promise<NextResponse> {
+export async function POST(request: NextRequest, { params }: { params: { path: string[] } }): Promise<NextResponse> {
   try {
-    const path = context.params.path.join("/");
+    const path = params.path.join("/");
     const url = `${BACKEND_URL}/${path}`;
     const body = await request.json();
 
@@ -120,9 +114,9 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   }
 }
 
-export async function PUT(request: NextRequest, context: RouteContext): Promise<NextResponse> {
+export async function PUT(request: NextRequest, { params }: { params: { path: string[] } }): Promise<NextResponse> {
   try {
-    const path = context.params.path.join("/");
+    const path = params.path.join("/");
     const url = `${BACKEND_URL}/${path}`;
     const body = await request.json();
 
@@ -171,9 +165,9 @@ export async function PUT(request: NextRequest, context: RouteContext): Promise<
   }
 }
 
-export async function DELETE(request: NextRequest, context: RouteContext): Promise<NextResponse> {
+export async function DELETE(request: NextRequest, { params }: { params: { path: string[] } }): Promise<NextResponse> {
   try {
-    const path = context.params.path.join("/");
+    const path = params.path.join("/");
     const url = `${BACKEND_URL}/${path}`;
 
     const response = await fetch(url, {
