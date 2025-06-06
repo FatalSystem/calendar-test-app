@@ -56,7 +56,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         error: "Failed to fetch from backend",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: error instanceof Error ? error : "Unknown error",
       },
       { status: 500 }
     );
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         error: "Failed to fetch from backend",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: error instanceof Error ? error : "Unknown error",
       },
       { status: 500 }
     );
@@ -158,7 +158,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         error: "Failed to fetch from backend",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: error instanceof Error ? error : "Unknown error",
       },
       { status: 500 }
     );
@@ -207,7 +207,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         error: "Failed to fetch from backend",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: error instanceof Error ? error : "Unknown error",
       },
       { status: 500 }
     );
