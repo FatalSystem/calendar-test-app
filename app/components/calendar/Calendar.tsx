@@ -327,8 +327,8 @@ export default function Calendar() {
               select={handleSelect}
               eventDrop={handleEventDrop}
               height="100%"
-              slotMinTime="06:00:00"
-              slotMaxTime="20:00:00"
+              slotMinTime="00:00:00"
+              slotMaxTime="24:00:00"
               allDaySlot={false}
               nowIndicator={true}
               timeZone="local"
