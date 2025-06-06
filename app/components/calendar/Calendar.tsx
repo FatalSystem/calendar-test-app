@@ -262,16 +262,8 @@ export default function Calendar() {
       try {
         // Update the calendar event
         if (originalEvent.calendar_id) {
-          await calendarApi.updateEvent(originalEvent.calendar_id, {
+          await calendarApi.updateEvent(originalEvent.id.toString(), {
             lesson_id: originalEvent.id,
-            startDate: event.start.toISOString(),
-            endDate: event.end.toISOString(),
-            teacher_id: parseInt(originalEvent.resourceId || "0"),
-            student_id: originalEvent.student_id,
-            class_type: originalEvent.class_type,
-            class_status: originalEvent.class_status,
-            payment_status: originalEvent.payment_status,
-            duration: Math.round((event.end.getTime() - event.start.getTime()) / (1000 * 60)),
           });
         }
       } catch (error) {
@@ -313,16 +305,8 @@ export default function Calendar() {
       try {
         // Update the calendar event
         if (originalEvent.calendar_id) {
-          await calendarApi.updateEvent(originalEvent.calendar_id, {
+          await calendarApi.updateEvent(originalEvent.id.toString(), {
             lesson_id: originalEvent.id,
-            startDate: event.start.toISOString(),
-            endDate: event.end.toISOString(),
-            teacher_id: parseInt(originalEvent.resourceId || "0"),
-            student_id: originalEvent.student_id,
-            class_type: originalEvent.class_type,
-            class_status: originalEvent.class_status,
-            payment_status: originalEvent.payment_status,
-            duration: Math.round((event.end.getTime() - event.start.getTime()) / (1000 * 60)),
           });
         }
       } catch (error) {
