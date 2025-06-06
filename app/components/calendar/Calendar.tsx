@@ -17,7 +17,6 @@ export default function Calendar() {
   const [teachers, setTeachers] = useState<BackendTeacher[]>([]);
   const [, setCalendarApi] = useState<CalendarApi | null>(null);
 
-  // Fetch teachers and lessons from backend
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -29,8 +28,10 @@ export default function Calendar() {
         setLessons(backendLessonsData);
         setTeachers(backendTeachersData);
 
-        console.log("Backend Lessons:", backendLessonsData);
-        console.log("Backend Teachers:", backendTeachersData);
+        if (backendTeachersData.length > 0) {
+          const teacherIds = backendTeachersData.map((t: BackendTeacher) => String(t.id));
+          setSelectedTeachers(teacherIds);
+        }
       } catch (error) {
         console.error("Error fetching calendar data:", {
           error: error instanceof Error ? error.message : "Unknown error",
@@ -53,21 +54,18 @@ export default function Calendar() {
         const selectedTeacher = teachers.find((t) => t.id === parseInt(selectedTeachers[0] || "0"));
 
         try {
-          // Create lesson in backend
           const newLesson = await calendarApi.createLesson({
             calendar_id: 0,
             lesson_date: selectInfo.start.toISOString().split("T")[0],
-            student_id: 5, // Default student ID
+            student_id: 5,
             teacher_id: selectedTeacher?.id || teachers[0]?.id || 0,
-            class_type_id: 2, // Default to Regular-Lesson
+            class_type_id: 2,
             class_status: "scheduled",
             start_time: selectInfo.start.toTimeString().split(" ")[0],
             end_time: selectInfo.end.toTimeString().split(" ")[0],
           });
 
-          // Update local state with the new lesson
           setLessons((prev) => [...prev, newLesson]);
-          console.log("Created lesson in backend:", newLesson);
         } catch (error) {
           console.error("Error creating lesson:", {
             error: error instanceof Error ? error.message : "Unknown error",
@@ -88,14 +86,12 @@ export default function Calendar() {
     if (!event.start || !event.end) return;
 
     try {
-      // Update lesson in backend
       await calendarApi.updateLesson(parseInt(event.id), {
         lesson_date: event.start.toISOString().split("T")[0],
         start_time: event.start.toTimeString().split(" ")[0],
         end_time: event.end.toTimeString().split(" ")[0],
       });
 
-      // Update local state
       setLessons((prev) =>
         prev.map((lesson) =>
           lesson.id === parseInt(event.id)
@@ -108,7 +104,6 @@ export default function Calendar() {
             : lesson
         )
       );
-      console.log("Updated lesson in backend:", event.id);
     } catch (error) {
       console.error("Error updating lesson:", {
         error: error instanceof Error ? error.message : "Unknown error",
@@ -118,25 +113,29 @@ export default function Calendar() {
             : undefined,
         stack: error instanceof Error ? error.stack : undefined,
       });
-      // Revert the drag if backend update fails
       dropInfo.revert();
     }
   }, []);
 
   const processedEvents = useMemo(() => {
-    return lessons
-      .filter((lesson) => selectedTeachers.includes(String(lesson.teacher_id)))
+    const filteredLessons = lessons.filter((lesson) => selectedTeachers.includes(String(lesson.teacher_id)));
+
+    const events = filteredLessons
       .map((lesson) => {
         const startDate = new Date(`${lesson.lesson_date}T${lesson.start_time}`);
         const endDate = new Date(`${lesson.lesson_date}T${lesson.end_time}`);
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return null;
+        }
 
         return {
           id: String(lesson.id),
           title: `${lesson.class_type?.name || "Lesson"} - ${lesson.Student?.first_name || ""} ${
             lesson.Student?.last_name || ""
           }`,
-          start: startDate,
-          end: endDate,
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
           backgroundColor: "#3174ad",
           borderColor: "#3174ad",
           extendedProps: {
@@ -150,7 +149,10 @@ export default function Calendar() {
             })} - ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
           },
         };
-      });
+      })
+      .filter((event): event is NonNullable<typeof event> => event !== null);
+
+    return events;
   }, [lessons, selectedTeachers]);
 
   return (
@@ -163,7 +165,9 @@ export default function Calendar() {
             color: "#3174ad",
           }))}
           selectedTeachers={selectedTeachers}
-          onTeacherSelect={setSelectedTeachers}
+          onTeacherSelect={(ids) => {
+            setSelectedTeachers(ids);
+          }}
         />
 
         <div className="bg-white rounded-lg shadow-sm p-6">
@@ -190,6 +194,7 @@ export default function Calendar() {
               slotMaxTime="20:00:00"
               allDaySlot={false}
               nowIndicator={true}
+              timeZone="local"
               eventTimeFormat={{
                 hour: "2-digit",
                 minute: "2-digit",
