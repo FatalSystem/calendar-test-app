@@ -49,7 +49,7 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
   setEvents: (events) => set({ events }),
   setTeachers: (teachers) =>
     set({
-      teachers: teachers.map((teacher, index) => ({
+      teachers: teachers.map((teacher: BackendTeacher, index: number) => ({
         ...teacher,
         color: TEACHER_COLORS[index % TEACHER_COLORS.length],
       })),
@@ -107,14 +107,14 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
     try {
       const teachers = await calendarApi.getTeachers();
       set({
-        teachers: teachers.map((teacher, index) => ({
+        teachers: teachers.map((teacher: BackendTeacher, index: number) => ({
           ...teacher,
           color: TEACHER_COLORS[index % TEACHER_COLORS.length],
         })),
       });
       // Set initial selected teachers if none are selected
       if (get().selectedTeachers.length === 0 && teachers.length > 0) {
-        set({ selectedTeachers: teachers.map((t) => String(t.id)) });
+        set({ selectedTeachers: teachers.map((t: BackendTeacher) => String(t.id)) });
       }
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to fetch teachers" });
