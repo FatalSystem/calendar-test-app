@@ -73,7 +73,6 @@ export default function CalendarStyles() {
         padding: 0.25rem !important;
         border-radius: 0.375rem !important;
         border: none !important;
-        background-color: #3b82f6 !important;
         color: white !important;
         font-size: 0.875rem !important;
         line-height: 1.25rem !important;
@@ -193,6 +192,42 @@ export default function CalendarStyles() {
         left: unset !important;
         z-index: 1 !important;
         background: #fff !important;
+      }
+
+      /* Teacher selector styles */
+      .teacher-selector {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .teacher-button {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        border: 1px solid #e5e7eb;
+        background-color: white;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .teacher-button:hover {
+        background-color: #f9fafb;
+      }
+
+      .teacher-button.selected {
+        border-color: transparent;
+      }
+
+      .teacher-color {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 9999px;
+        border: 2px solid white;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
       }
     `}</style>
   );

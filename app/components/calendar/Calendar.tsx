@@ -52,9 +52,6 @@ export default function Calendar() {
   }, [fetchEvents, fetchTeachers]);
 
   const processedEvents = useMemo(() => {
-    console.log("Raw events from store:", events);
-    console.log("Selected Teachers:", selectedTeachers);
-
     return events
       .filter((event) => {
         const teacherId = event.resourceId || event.teacher_id?.toString();
@@ -95,7 +92,6 @@ export default function Calendar() {
           borderColor: teacherColor,
         };
 
-        console.log("Processed calendar event:", calendarEvent);
         return calendarEvent;
       })
       .filter((event): event is NonNullable<typeof event> => event !== null);
@@ -133,9 +129,6 @@ export default function Calendar() {
           maxOverlap = Math.max(maxOverlap, currentOverlap);
         }
 
-        console.log("Event ranges:", eventRanges);
-        console.log("Max overlap:", maxOverlap);
-
         // Default width
         const defaultWidth = 120;
         // Only expand if more than 2 overlapping events
@@ -163,8 +156,6 @@ export default function Calendar() {
       window.removeEventListener("resize", adjustDayColumnWidths);
     };
   }, [processedEvents]);
-
-  console.log("Final processed events:", processedEvents);
 
   const handleSelect = useCallback(
     async (selectInfo: DateSelectArg) => {
@@ -286,7 +277,7 @@ export default function Calendar() {
   if (error) {
     return <div>Error: {error}</div>;
   }
-
+  console.log(teachers);
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -351,9 +342,6 @@ export default function Calendar() {
                     </div>
                   `,
                 };
-              }}
-              eventDidMount={(info) => {
-                console.log("Event mounted:", info.event);
               }}
               slotDuration="00:15:00"
               slotLabelInterval="01:00"
