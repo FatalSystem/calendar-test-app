@@ -1,3 +1,5 @@
+import { BackendLesson, BackendTeacher } from "@/app/api/calendar";
+
 export interface Lesson {
   id: string;
   title: string;
@@ -165,3 +167,28 @@ export const testLessons: Lesson[] = [
     color: "#31ad31",
   },
 ];
+
+// Helper function to convert backend teacher to frontend teacher format
+export const convertBackendTeacherToFrontend = (backendTeacher: BackendTeacher): Teacher => {
+  return {
+    id: backendTeacher.id.toString(),
+    name: backendTeacher.name,
+    color: "#3174ad", // You might want to configure this based on teacher preferences
+  };
+};
+
+// Helper function to convert frontend lesson to backend lesson format
+export const convertFrontendLessonToBackend = (
+  lesson: Lesson
+): Omit<BackendLesson, "id" | "createdAt" | "updatedAt"> => {
+  return {
+    calendar_id: 1, // You'll need to set this based on your calendar structure
+    lesson_date: lesson.start.toISOString().split("T")[0],
+    student_id: 1, // You'll need to set this based on your student structure
+    teacher_id: parseInt(lesson.teacherId),
+    class_type_id: 1, // You'll need to set this based on your class type structure
+    class_status: "scheduled",
+    start_time: lesson.start.toTimeString().split(" ")[0],
+    end_time: lesson.end.toTimeString().split(" ")[0],
+  };
+};

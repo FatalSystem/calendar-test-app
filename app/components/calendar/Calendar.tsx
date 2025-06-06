@@ -13,7 +13,7 @@ import CalendarStyles from "./CalendarStyles";
 export default function Calendar() {
   const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>(testLessons);
-  const [calendarApi, setCalendarApi] = useState<CalendarApi | null>(null);
+  const [, setCalendarApi] = useState<CalendarApi | null>(null);
 
   const handleSelect = useCallback(
     (selectInfo: DateSelectArg) => {
@@ -100,8 +100,8 @@ export default function Calendar() {
 
         // Default width
         const defaultWidth = 120;
-        // Only expand if more than 2 overlapping events
-        const expandedWidth = maxOverlap > 1 ? defaultWidth + (maxOverlap - 2) * 60 : defaultWidth;
+        // Expand if more than 1 overlapping event (i.e., 2 or more events)
+        const expandedWidth = maxOverlap > 1 ? defaultWidth + (maxOverlap - 1) * 60 : defaultWidth;
 
         columnElement.style.minWidth = `${expandedWidth}px`;
         columnElement.style.width = `${expandedWidth}px`;

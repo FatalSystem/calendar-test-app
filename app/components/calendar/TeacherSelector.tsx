@@ -11,7 +11,7 @@ interface TeacherSelectorProps {
 export default function TeacherSelector({ teachers, selectedTeachers, onTeacherSelect }: TeacherSelectorProps) {
   return (
     <div className="mb-6">
-      <h2 className="text-lg font-semibold mb-3">Select Teachers</h2>
+      <h2 className="text-lg font-semibold mb-3 text-black">Select Teachers</h2>
       <div className="flex flex-wrap gap-2">
         {teachers.map((teacher) => (
           <button
