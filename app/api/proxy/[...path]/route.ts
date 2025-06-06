@@ -8,15 +8,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const searchParams = request.nextUrl.searchParams.toString();
     const url = `${BACKEND_URL}/${path}${searchParams ? `?${searchParams}` : ""}`;
 
-    console.log("Making request to backend:", {
-      url,
-      method: "GET",
-      headers: {
-        Authorization: request.headers.get("Authorization") ? "Bearer [REDACTED]" : "none",
-        "Content-Type": "application/json",
-      },
-    });
-
     const response = await fetch(url, {
       headers: {
         Authorization: request.headers.get("Authorization") || "",
@@ -28,7 +19,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const contentType = response.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
       const text = await response.text();
-      console.error("Non-JSON response from backend:", {
+      console.log("Non-JSON response from backend:", {
         url,
         status: response.status,
         statusText: response.statusText,
@@ -48,7 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error("Proxy GET Error:", {
+    console.log("Proxy GET Error:", {
       error: error instanceof Error ? error.message : "Unknown error",
       stack: error instanceof Error ? error.stack : undefined,
       url: `${BACKEND_URL}/${request.nextUrl.pathname.split("/api/proxy/")[1]}`,
@@ -82,7 +73,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const contentType = response.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
       const text = await response.text();
-      console.error("Non-JSON response:", {
+      console.log("Non-JSON response:", {
         url,
         status: response.status,
         contentType,
@@ -100,7 +91,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error("Proxy POST Error:", {
+    console.log("Proxy POST Error:", {
       error: error instanceof Error ? error.message : "Unknown error",
       stack: error instanceof Error ? error.stack : undefined,
     });
@@ -129,11 +120,19 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       body: JSON.stringify(body),
     });
 
+    // Log response details for debugging
+    console.log("PUT Response:", {
+      url,
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+    });
+
     // Check if response is JSON
     const contentType = response.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
       const text = await response.text();
-      console.error("Non-JSON response:", {
+      console.log("Non-JSON response:", {
         url,
         status: response.status,
         contentType,
@@ -149,9 +148,27 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     const data = await response.json();
+
+    // Check if the response indicates an error
+    if (!response.ok) {
+      console.log("Error response from backend:", {
+        url,
+        status: response.status,
+        statusText: response.statusText,
+        data,
+      });
+      return NextResponse.json(
+        {
+          error: "Backend request failed",
+          details: data,
+        },
+        { status: response.status }
+      );
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error("Proxy PUT Error:", {
+    console.log("Proxy PUT Error:", {
       error: error instanceof Error ? error.message : "Unknown error",
       stack: error instanceof Error ? error.stack : undefined,
     });
@@ -182,7 +199,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     const contentType = response.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
       const text = await response.text();
-      console.error("Non-JSON response:", {
+      console.log("Non-JSON response:", {
         url,
         status: response.status,
         contentType,
@@ -200,7 +217,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error("Proxy DELETE Error:", {
+    console.log("Proxy DELETE Error:", {
       error: error instanceof Error ? error.message : "Unknown error",
       stack: error instanceof Error ? error.stack : undefined,
     });

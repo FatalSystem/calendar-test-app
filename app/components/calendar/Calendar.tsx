@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { EventDropArg, DateSelectArg, PluginDef } from "@fullcalendar/core";
-import { BackendLesson, BackendTeacher } from "./types";
+import { Event, BackendTeacher } from "./types";
 import TeacherSelector from "./TeacherSelector";
 import CalendarStyles from "./CalendarStyles";
 import { calendarApi } from "@/app/api/calendar";
@@ -16,7 +16,7 @@ const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
 
 export default function Calendar() {
   const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
-  const [lessons, setLessons] = useState<BackendLesson[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
   const [teachers, setTeachers] = useState<BackendTeacher[]>([]);
   const [plugins, setPlugins] = useState<PluginDef[]>([]);
 
@@ -36,14 +36,22 @@ export default function Calendar() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [backendLessonsData, backendTeachersData] = await Promise.all([
-          calendarApi.getLessons(),
+        const [eventsData, backendTeachersData] = await Promise.all([
+          calendarApi.getAllEvents(),
           calendarApi.getTeachers(),
         ]);
 
-        setLessons(backendLessonsData);
-        setTeachers(backendTeachersData);
+        console.log("API Response:", eventsData);
+        console.log("Events from API:", eventsData.events?.rows);
+        console.log("Selected Teachers:", selectedTeachers);
 
+        // Set events from the API response
+        if (eventsData.events?.rows) {
+          setEvents(eventsData.events.rows);
+        }
+
+        // Set teachers and update selected teachers
+        setTeachers(backendTeachersData);
         if (backendTeachersData.length > 0) {
           const teacherIds = backendTeachersData.map((t: BackendTeacher) => String(t.id));
           setSelectedTeachers(teacherIds);
@@ -65,25 +73,57 @@ export default function Calendar() {
 
   const handleSelect = useCallback(
     async (selectInfo: DateSelectArg) => {
-      const title = prompt("Please enter a title for your lesson:");
+      const title = prompt("Please enter a title for your event:");
       if (title) {
         const selectedTeacher = teachers.find((t) => t.id === parseInt(selectedTeachers[0] || "0"));
+        const teacherId = selectedTeacher?.id || teachers[0]?.id || 0;
+
+        // Create optimistic event object
+        const optimisticEvent: Event = {
+          id: Date.now(), // Temporary ID
+          startDate: selectInfo.start.toISOString(),
+          endDate: selectInfo.end.toISOString(),
+          name: title,
+          resourceId: String(teacherId),
+          teacherColor: "#3174ad",
+          eventColor: "#3174ad",
+          class_type: "regular",
+          class_status: "scheduled",
+          payment_status: "unpaid",
+          duration: 50,
+          isUnavailable: false,
+          student_name: "5",
+          student_name_text: "Student Name",
+          calendar_id: 0,
+          student_id: 5,
+        };
+
+        // Optimistically update the UI
+        setEvents((prev) => [...prev, optimisticEvent]);
 
         try {
-          const newLesson = await calendarApi.createLesson({
-            calendar_id: 0,
-            lesson_date: selectInfo.start.toISOString().split("T")[0],
+          // Format dates in UTC to match backend's dayjs format
+          const startDate = new Date(selectInfo.start.getTime() - selectInfo.start.getTimezoneOffset() * 60000);
+          const endDate = new Date(selectInfo.end.getTime() - selectInfo.end.getTimezoneOffset() * 60000);
+
+          // Create the calendar entry
+          const calendarResponse = await calendarApi.createCalendar({
+            class_type: title,
             student_id: 5,
-            teacher_id: selectedTeacher?.id || teachers[0]?.id || 0,
-            class_type_id: 2,
+            teacher_id: teacherId,
             class_status: "scheduled",
-            start_time: selectInfo.start.toTimeString().split(" ")[0],
-            end_time: selectInfo.end.toTimeString().split(" ")[0],
+            payment_status: "unpaid",
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            duration: 50,
           });
 
-          setLessons((prev) => [...prev, newLesson]);
+          // Replace optimistic event with real one
+          setEvents((prev) => prev.map((event) => (event.id === optimisticEvent.id ? calendarResponse : event)));
         } catch (error) {
-          console.error("Error creating lesson:", {
+          // Revert optimistic update on error
+          setEvents((prev) => prev.filter((event) => event.id !== optimisticEvent.id));
+          console.error("Error creating event:", {
             error: error instanceof Error ? error.message : "Unknown error",
             response:
               error instanceof Error && "response" in error
@@ -97,79 +137,102 @@ export default function Calendar() {
     [selectedTeachers, teachers]
   );
 
-  const handleEventDrop = useCallback(async (dropInfo: EventDropArg) => {
-    const { event } = dropInfo;
-    if (!event.start || !event.end) return;
+  const handleEventDrop = useCallback(
+    async (dropInfo: EventDropArg) => {
+      const { event } = dropInfo;
+      if (!event.start || !event.end) return;
 
-    try {
-      await calendarApi.updateLesson(parseInt(event.id), {
-        lesson_date: event.start.toISOString().split("T")[0],
-        start_time: event.start.toTimeString().split(" ")[0],
-        end_time: event.end.toTimeString().split(" ")[0],
-      });
+      // Store original event for potential revert
+      const originalEvent = events.find((e) => e.id === parseInt(event.id));
+      if (!originalEvent) return;
 
-      setLessons((prev) =>
-        prev.map((lesson) =>
-          lesson.id === parseInt(event.id)
-            ? {
-                ...lesson,
-                lesson_date: event.start!.toISOString().split("T")[0],
-                start_time: event.start!.toTimeString().split(" ")[0],
-                end_time: event.end!.toTimeString().split(" ")[0],
-              }
-            : lesson
-        )
-      );
-    } catch (error) {
-      console.error("Error updating lesson:", {
-        error: error instanceof Error ? error.message : "Unknown error",
-        response:
-          error instanceof Error && "response" in error
-            ? (error as { response?: { data: unknown } }).response?.data
-            : undefined,
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      dropInfo.revert();
-    }
-  }, []);
+      // Create optimistic update
+      const optimisticEvent = {
+        ...originalEvent,
+        startDate: event.start.toISOString(),
+        endDate: event.end.toISOString(),
+      };
+
+      // Optimistically update the UI
+      setEvents((prev) => prev.map((e) => (e.id === parseInt(event.id) ? optimisticEvent : e)));
+
+      try {
+        // Update the calendar event
+        if (originalEvent.calendar_id) {
+          await calendarApi.updateEvent(originalEvent.calendar_id, {
+            lesson_id: originalEvent.id,
+          });
+        }
+      } catch (error) {
+        // Revert optimistic update on error
+        setEvents((prev) => prev.map((e) => (e.id === parseInt(event.id) ? originalEvent : e)));
+        dropInfo.revert();
+        console.error("Error updating event:", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          response:
+            error instanceof Error && "response" in error
+              ? (error as { response?: { data: unknown } }).response?.data
+              : undefined,
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      }
+    },
+    [events]
+  );
 
   const processedEvents = useMemo(() => {
-    const filteredLessons = lessons.filter((lesson) => selectedTeachers.includes(String(lesson.teacher_id)));
+    console.log("Raw events from state:", events);
+    console.log("Selected teachers:", selectedTeachers);
 
-    const events = filteredLessons
-      .map((lesson) => {
-        const startDate = new Date(`${lesson.lesson_date}T${lesson.start_time}`);
-        const endDate = new Date(`${lesson.lesson_date}T${lesson.end_time}`);
+    const filteredEvents = events.filter((event) => {
+      const matches = selectedTeachers.includes(event.resourceId);
+      console.log("Event filter check:", {
+        eventId: event.id,
+        teacherId: event.resourceId,
+        selectedTeachers,
+        matches,
+      });
+      return matches;
+    });
+
+    console.log("Filtered events:", filteredEvents);
+
+    return filteredEvents
+      .map((event) => {
+        // Format dates for the calendar
+        const startDate = new Date(event.startDate);
+        const endDate = new Date(event.endDate);
 
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          console.error("Invalid date detected:", { event, startDate, endDate });
           return null;
         }
 
-        return {
-          id: String(lesson.id),
-          title: `${lesson.class_type?.name || "Lesson"} - ${lesson.Student?.first_name || ""} ${
-            lesson.Student?.last_name || ""
-          }`,
+        const calendarEvent = {
+          id: String(event.id),
+          title: event.name || event.class_type || "Event",
           start: startDate.toISOString(),
           end: endDate.toISOString(),
-          backgroundColor: "#3174ad",
-          borderColor: "#3174ad",
+          backgroundColor: event.teacherColor || "#3174ad",
+          borderColor: event.teacherColor || "#3174ad",
           extendedProps: {
-            teacherName: `${lesson.Teacher?.first_name || ""} ${lesson.Teacher?.last_name || ""}`,
-            studentName: `${lesson.Student?.first_name || ""} ${lesson.Student?.last_name || ""}`,
-            classType: lesson.class_type?.name || "",
-            classStatus: lesson.class_status,
+            teacherName: event.resourceId,
+            studentName: event.student_name_text || "",
+            classType: event.class_type || "",
+            classStatus: event.class_status,
             timeRange: `${startDate.toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             })} - ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
           },
         };
+        console.log("Processed calendar event:", calendarEvent);
+        return calendarEvent;
       })
       .filter((event): event is NonNullable<typeof event> => event !== null);
+  }, [events, selectedTeachers]);
 
-    return events;
-  }, [lessons, selectedTeachers]);
+  console.log("Final processed events:", processedEvents);
 
   if (plugins.length === 0) {
     return <div>Loading calendar plugins...</div>;
@@ -244,6 +307,12 @@ export default function Calendar() {
                   `,
                 };
               }}
+              eventDidMount={(info) => {
+                console.log("Event mounted:", info.event);
+              }}
+              slotDuration="00:15:00"
+              slotLabelInterval="01:00"
+              expandRows={true}
             />
           </div>
         </div>
