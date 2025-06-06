@@ -358,10 +358,8 @@ export default function Calendar() {
                             ${eventInfo.event.title}
                           </div>
                           <div class="fc-event-details">
-                            <div class="fc-event-teacher">Teacher: ${extendedProps.teacherName}</div>
-                            <div class="fc-event-student">Student: ${extendedProps.studentName}</div>
-                            <div class="fc-event-class">Type: ${extendedProps.classType}</div>
-                            <div class="fc-event-status">Status: ${extendedProps.classStatus}</div>
+                            <div class="fc-event-teacher">${extendedProps.teacherName}</div>
+                            <div class="fc-event-student">${extendedProps.studentName}</div>
                             <div class="fc-event-time">${extendedProps.timeRange}</div>
                           </div>
                         </div>
