@@ -8,6 +8,7 @@ export interface Event {
   startDate: string;
   endDate: string;
   resourceId: string;
+  teacher_id?: number;
   teacherColor: string;
   eventColor: string;
   class_type: string;

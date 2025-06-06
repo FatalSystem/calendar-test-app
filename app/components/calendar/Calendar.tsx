@@ -3,10 +3,11 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { EventDropArg, DateSelectArg, PluginDef } from "@fullcalendar/core";
-import { Event, BackendTeacher } from "./types";
+import { Event } from "./types";
 import TeacherSelector from "./TeacherSelector";
 import CalendarStyles from "./CalendarStyles";
 import { calendarApi } from "@/app/api/calendar";
+import { useCalendarStore } from "@/app/store/calendarStore";
 
 // Dynamically import FullCalendar with no SSR
 const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
@@ -15,9 +16,19 @@ const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
 });
 
 export default function Calendar() {
-  const [selectedTeachers, setSelectedTeachers] = useState<string[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [teachers, setTeachers] = useState<BackendTeacher[]>([]);
+  const {
+    events,
+    teachers,
+    selectedTeachers,
+    setSelectedTeachers,
+    fetchEvents,
+    fetchTeachers,
+    updateEvent,
+    getTeacherColor,
+    isLoading,
+    error,
+  } = useCalendarStore();
+
   const [plugins, setPlugins] = useState<PluginDef[]>([]);
 
   useEffect(() => {
@@ -34,94 +45,61 @@ export default function Calendar() {
   }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [eventsData, backendTeachersData] = await Promise.all([
-          calendarApi.getAllEvents(),
-          calendarApi.getTeachers(),
-        ]);
-
-        console.log("API Response:", eventsData);
-        console.log("Events from API:", eventsData.events?.rows);
-        console.log("Selected Teachers:", selectedTeachers);
-
-        // Set events from the API response
-        if (eventsData.events?.rows) {
-          setEvents(eventsData.events.rows);
-        }
-
-        // Set teachers and update selected teachers
-        setTeachers(backendTeachersData);
-        if (backendTeachersData.length > 0) {
-          const teacherIds = backendTeachersData.map((t: BackendTeacher) => String(t.id));
-          setSelectedTeachers(teacherIds);
-        }
-      } catch (error) {
-        console.error("Error fetching calendar data:", {
-          error: error instanceof Error ? error.message : "Unknown error",
-          response:
-            error instanceof Error && "response" in error
-              ? (error as { response?: { data: unknown } }).response?.data
-              : undefined,
-          stack: error instanceof Error ? error.stack : undefined,
-        });
-      }
+    const loadData = async () => {
+      await Promise.all([fetchEvents(), fetchTeachers()]);
     };
-
-    fetchData();
-  }, []);
+    loadData();
+  }, [fetchEvents, fetchTeachers]);
 
   const processedEvents = useMemo(() => {
-    console.log("Raw events from state:", events);
-    console.log("Selected teachers:", selectedTeachers);
+    console.log("Raw events from store:", events);
+    console.log("Selected Teachers:", selectedTeachers);
 
-    const filteredEvents = events.filter((event) => {
-      const matches = selectedTeachers.includes(event.resourceId);
-      console.log("Event filter check:", {
-        eventId: event.id,
-        teacherId: event.resourceId,
-        selectedTeachers,
-        matches,
-      });
-      return matches;
-    });
-
-    console.log("Filtered events:", filteredEvents);
-
-    return filteredEvents
+    return events
+      .filter((event) => {
+        const teacherId = event.resourceId || event.teacher_id?.toString();
+        return selectedTeachers.includes(teacherId || "");
+      })
       .map((event) => {
-        // Format dates for the calendar
         const startDate = new Date(event.startDate);
         const endDate = new Date(event.endDate);
 
+        // Skip invalid dates
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-          console.error("Invalid date detected:", { event, startDate, endDate });
+          console.warn("Invalid date in event:", event);
           return null;
         }
 
+        const teacher = teachers.find((t) => t.id === parseInt(event.resourceId || "0"));
+        const teacherName = teacher ? `${teacher.first_name} ${teacher.last_name}` : "Unknown Teacher";
+        const teacherColor = getTeacherColor(parseInt(event.resourceId || "0"));
+
         const calendarEvent = {
-          id: String(event.id),
-          title: event.name || event.class_type || "Event",
-          start: startDate.toISOString(),
-          end: endDate.toISOString(),
-          backgroundColor: event.teacherColor || "#3174ad",
-          borderColor: event.teacherColor || "#3174ad",
+          id: event.id.toString(),
+          title: event.name || "Event",
+          start: startDate,
+          end: endDate,
+          resourceId: event.resourceId || event.teacher_id?.toString(),
           extendedProps: {
-            teacherName: event.resourceId,
-            studentName: event.student_name_text || "",
-            classType: event.class_type || "",
-            classStatus: event.class_status,
+            teacherName,
+            studentName: event.student_name_text || "No Student",
             timeRange: `${startDate.toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             })} - ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+            classType: event.class_type,
+            classStatus: event.class_status,
+            paymentStatus: event.payment_status,
           },
+          backgroundColor: teacherColor,
+          borderColor: teacherColor,
         };
+
         console.log("Processed calendar event:", calendarEvent);
         return calendarEvent;
       })
       .filter((event): event is NonNullable<typeof event> => event !== null);
-  }, [events, selectedTeachers]);
+  }, [events, selectedTeachers, teachers, getTeacherColor]);
 
   useEffect(() => {
     const adjustDayColumnWidths = () => {
@@ -216,7 +194,7 @@ export default function Calendar() {
         };
 
         // Optimistically update the UI
-        setEvents((prev) => [...prev, optimisticEvent]);
+        updateEvent(Date.now(), optimisticEvent);
 
         try {
           // Format dates in UTC to match backend's dayjs format
@@ -236,10 +214,10 @@ export default function Calendar() {
           });
 
           // Replace optimistic event with real one
-          setEvents((prev) => prev.map((event) => (event.id === optimisticEvent.id ? calendarResponse : event)));
+          updateEvent(Date.now(), calendarResponse);
         } catch (error) {
           // Revert optimistic update on error
-          setEvents((prev) => prev.filter((event) => event.id !== optimisticEvent.id));
+          updateEvent(Date.now(), optimisticEvent);
           console.error("Error creating event:", {
             error: error instanceof Error ? error.message : "Unknown error",
             response:
@@ -251,7 +229,7 @@ export default function Calendar() {
         }
       }
     },
-    [selectedTeachers, teachers]
+    [selectedTeachers, teachers, updateEvent]
   );
 
   const handleEventDrop = useCallback(
@@ -270,8 +248,8 @@ export default function Calendar() {
         endDate: event.end.toISOString(),
       };
 
-      // Optimistically update the UI
-      setEvents((prev) => prev.map((e) => (e.id === parseInt(event.id) ? optimisticEvent : e)));
+      // Optimistically update the UI using Zustand
+      updateEvent(parseInt(event.id), optimisticEvent);
 
       try {
         // Update the calendar event
@@ -282,7 +260,7 @@ export default function Calendar() {
         }
       } catch (error) {
         // Revert optimistic update on error
-        setEvents((prev) => prev.map((e) => (e.id === parseInt(event.id) ? originalEvent : e)));
+        updateEvent(parseInt(event.id), originalEvent);
         dropInfo.revert();
         console.error("Error updating event:", {
           error: error instanceof Error ? error.message : "Unknown error",
@@ -294,11 +272,19 @@ export default function Calendar() {
         });
       }
     },
-    [events]
+    [events, updateEvent]
   );
 
   if (plugins.length === 0) {
     return <div>Loading calendar plugins...</div>;
+  }
+
+  if (isLoading) {
+    return <div>Loading calendar data...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
   }
 
   return (
@@ -308,12 +294,10 @@ export default function Calendar() {
           teachers={teachers.map((t) => ({
             id: String(t.id),
             name: `${t.first_name} ${t.last_name}`,
-            color: "#3174ad",
+            color: t.color,
           }))}
           selectedTeachers={selectedTeachers}
-          onTeacherSelect={(ids) => {
-            setSelectedTeachers(ids);
-          }}
+          onTeacherSelect={setSelectedTeachers}
         />
 
         <div className="bg-white rounded-lg shadow-sm p-6">
