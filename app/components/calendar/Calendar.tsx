@@ -64,103 +64,51 @@ export default function Calendar() {
   }, [lessons, selectedTeachers]);
 
   useEffect(() => {
-    const adjustColumnWidths = () => {
-      const columns = document.querySelectorAll(".fc-timegrid-col");
-
-      columns.forEach((column) => {
-        const date = column.getAttribute("data-date");
-        if (!date) return;
-
-        const events = column.querySelectorAll(".fc-timegrid-event");
-        const timeSlots = new Map();
-
-        // Group events by time slot
-        events.forEach((event) => {
-          const start = event.getAttribute("data-start");
-          if (!start) return;
-
-          if (!timeSlots.has(start)) {
-            timeSlots.set(start, []);
-          }
-          timeSlots.get(start).push(event);
-        });
-
-        // Find the maximum number of overlapping events
-        let maxOverlap = 1;
-        timeSlots.forEach((events) => {
-          maxOverlap = Math.max(maxOverlap, events.length);
-        });
-
-        // Calculate new width based on overlap
-        const baseWidth = window.innerWidth * 0.12; // 12vw per column, for example
-        const widthPerEvent = 100;
-        const newWidth = maxOverlap > 2 ? baseWidth + (maxOverlap - 2) * widthPerEvent : baseWidth;
-
-        // Apply width to both header and content
-        const headerCell = document.querySelector(`th[data-date="${date}"]`) as HTMLElement;
-        if (headerCell) {
-          headerCell.style.width = `${newWidth}px`;
-          headerCell.style.minWidth = `${newWidth}px`;
-          headerCell.style.maxWidth = `${newWidth}px`;
-        }
-
-        const columnElement = column as HTMLElement;
-        columnElement.style.width = `${newWidth}px`;
-        columnElement.style.minWidth = `${newWidth}px`;
-        columnElement.style.maxWidth = `${newWidth}px`;
-
-        // Adjust event widths and spacing
-        const columnEvents = column.querySelectorAll(".fc-timegrid-event");
-        columnEvents.forEach((event) => {
-          const eventElement = event as HTMLElement;
-          eventElement.style.width = `calc(100% - 4px)`;
-          eventElement.style.margin = "1px 2px";
-        });
-      });
-    };
-
-    // Initial adjustment
-    if (calendarApi) {
-      adjustColumnWidths();
-    }
-
-    // Add event listeners
-    if (calendarApi) {
-      const handleEvent = () => adjustColumnWidths();
-
-      calendarApi.on("eventChange", handleEvent);
-      calendarApi.on("eventAdd", handleEvent);
-      calendarApi.on("eventRemove", handleEvent);
-      calendarApi.on("datesSet", handleEvent);
-
-      // Also adjust on window resize
-      window.addEventListener("resize", adjustColumnWidths);
-
-      return () => {
-        calendarApi.off("eventChange", handleEvent);
-        calendarApi.off("eventAdd", handleEvent);
-        calendarApi.off("eventRemove", handleEvent);
-        calendarApi.off("datesSet", handleEvent);
-        window.removeEventListener("resize", adjustColumnWidths);
-      };
-    }
-  }, [calendarApi]);
-
-  useEffect(() => {
     const adjustDayColumnWidths = () => {
       const columns = document.querySelectorAll(".fc-timegrid-col[data-date]");
       columns.forEach((column) => {
-        const events = column.querySelectorAll(".fc-timegrid-event");
-        const eventCount = events.length;
+        const columnElement = column as HTMLElement;
+        const events = columnElement.querySelectorAll(".fc-timegrid-event");
+
+        // Calculate max overlapping events
+        const eventRanges = Array.from(events).map((event) => {
+          const timeElement = event.querySelector(".fc-event-time");
+          const timeRange = timeElement?.textContent || "";
+          const [start, end] = timeRange.split(" - ").map((time) => {
+            const [hours, minutes] = time.split(":").map(Number);
+            return hours * 60 + minutes; // Convert to minutes for easier comparison
+          });
+          return { start, end, event };
+        });
+
+        // Find maximum overlap
+        let maxOverlap = 1;
+        for (let i = 0; i < eventRanges.length; i++) {
+          let currentOverlap = 1;
+          for (let j = 0; j < eventRanges.length; j++) {
+            if (i === j) continue;
+            // Check if events overlap
+            if (eventRanges[i].start < eventRanges[j].end && eventRanges[i].end > eventRanges[j].start) {
+              currentOverlap++;
+            }
+          }
+          maxOverlap = Math.max(maxOverlap, currentOverlap);
+        }
+
+        console.log("Event ranges:", eventRanges);
+        console.log("Max overlap:", maxOverlap);
+
         // Default width
         const defaultWidth = 120;
-        // Only expand if more than 2 events
-        const expandedWidth = eventCount > 2 ? defaultWidth + (eventCount - 2) * 60 : defaultWidth;
-        column.style.minWidth = `${expandedWidth}px`;
-        column.style.width = `${expandedWidth}px`;
-        column.style.maxWidth = `400px`;
+        // Only expand if more than 2 overlapping events
+        const expandedWidth = maxOverlap > 1 ? defaultWidth + (maxOverlap - 2) * 60 : defaultWidth;
+
+        columnElement.style.minWidth = `${expandedWidth}px`;
+        columnElement.style.width = `${expandedWidth}px`;
+        columnElement.style.maxWidth = `400px`;
+
         // Also set the header cell width
-        const date = column.getAttribute("data-date");
+        const date = columnElement.getAttribute("data-date");
         if (date) {
           const headerCell = document.querySelector(`th[data-date=\"${date}\"]`) as HTMLElement;
           if (headerCell) {
