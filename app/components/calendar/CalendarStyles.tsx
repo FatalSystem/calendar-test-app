@@ -229,6 +229,15 @@ export default function CalendarStyles() {
         border: 2px solid white;
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
       }
+
+      .fc .fc-timegrid-event.fc-event-background {
+        z-index: 1 !important;
+        pointer-events: none !important;
+      }
+
+      .fc .fc-timegrid-event:not(.fc-event-background) {
+        z-index: 2 !important;
+      }
     `}</style>
   );
 }

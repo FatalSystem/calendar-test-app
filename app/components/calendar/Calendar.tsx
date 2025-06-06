@@ -61,14 +61,30 @@ export default function Calendar() {
         const startDate = new Date(event.startDate);
         const endDate = new Date(event.endDate);
 
-        // Skip invalid dates
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-          console.warn("Invalid date in event:", event);
-          return null;
-        }
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return null;
 
         const teacher = teachers.find((t) => t.id === parseInt(event.resourceId || "0"));
         const teacherName = teacher ? `${teacher.first_name} ${teacher.last_name}` : "Unknown Teacher";
+
+        if (event.isUnavailable || (event.name && event.name.startsWith("Not Available"))) {
+          return {
+            id: event.id.toString(),
+            title: teacherName,
+            start: startDate,
+            end: endDate,
+            resourceId: event.resourceId || event.teacher_id?.toString(),
+            isUnavailableBlock: true,
+            backgroundColor: "#e5e7eb", // Tailwind gray-200
+            borderColor: "#e5e7eb",
+            display: "background", // This makes it a background event
+            editable: false, // Disable dragging
+            interactive: false, // Disable clicking
+            extendedProps: {
+              teacherName,
+            },
+          };
+        }
+
         const teacherColor = getTeacherColor(parseInt(event.resourceId || "0"));
 
         const calendarEvent = {
@@ -323,6 +339,24 @@ export default function Calendar() {
                 hour12: false,
               }}
               eventContent={(eventInfo) => {
+                const { isUnavailableBlock } = eventInfo.event.extendedProps;
+                if (isUnavailableBlock) {
+                  return {
+                    html: `
+                      <div style="
+                        background:#e5e7eb;
+                        color:#374151;
+                        padding:8px;
+                        border-radius:6px;
+                        text-align:center;
+                        pointer-events:none;
+                        z-index:1;
+                      ">
+                        <span style="font-weight:500;">${eventInfo.event.title} - N/A</span>
+                      </div>
+                    `,
+                  };
+                }
                 const { extendedProps } = eventInfo.event;
                 return {
                   html: `
