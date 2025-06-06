@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { calendarApi } from "@/app/api/calendar";
+import { AxiosError } from "axios";
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -21,8 +22,12 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     try {
       await calendarApi.login(email, password);
       onLoginSuccess();
-    } catch (error: any) {
-      setError(error.response?.data?.msg || "Login failed. Please try again.");
+    } catch (error: unknown) {
+      if (error instanceof AxiosError && error.response?.data?.msg) {
+        setError(error.response.data.msg);
+      } else {
+        setError("Login failed. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
