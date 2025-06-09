@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import Calendar from "./components/calendar/Calendar";
 import Login from "./components/auth/Login";
+import { CalendarProvider } from "./store/CalendarContext";
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Check if we have a token on mount
     const token = localStorage.getItem("token");
+
     if (token) {
       setIsAuthenticated(true);
     }
@@ -20,8 +21,10 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen">
-      <Calendar />
-    </div>
+    <CalendarProvider>
+      <div className="h-screen">
+        <Calendar />
+      </div>
+    </CalendarProvider>
   );
 }

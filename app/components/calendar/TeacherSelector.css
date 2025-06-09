@@ -1,0 +1,37 @@
+.teacher-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.teacher-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.75rem;
+  background-color: white;
+  color: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.teacher-button:hover {
+  background-color: #f3f4f6;
+}
+
+.teacher-button.selected {
+  background-color: var(--selected-color, #2563eb);
+  color: white;
+  border-color: var(--selected-color, #2563eb);
+}
+
+.teacher-color {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 1px solid #d1d5db;
+}

@@ -8,7 +8,9 @@ import { Event } from "./types";
 import TeacherSelector from "./TeacherSelector";
 import CalendarStyles from "./CalendarStyles";
 import { calendarApi } from "@/app/api/calendar";
-import { useCalendarStore } from "@/app/store/calendarStore";
+import EventCreateForm from "./EventCreateForm";
+import "./Calendar.css";
+import { useCalendarContext } from "@/app/store/CalendarContext";
 
 // Dynamically import FullCalendar with no SSR
 const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
@@ -28,18 +30,24 @@ export default function Calendar() {
     getTeacherColor,
     isLoading,
     error,
-  } = useCalendarStore();
+  } = useCalendarContext();
 
   const [plugins, setPlugins] = useState<PluginDef[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   useEffect(() => {
     const loadPlugins = async () => {
-      const [{ default: dayGridPlugin }, { default: timeGridPlugin }, { default: interactionPlugin }] =
-        await Promise.all([
-          import("@fullcalendar/daygrid"),
-          import("@fullcalendar/timegrid"),
-          import("@fullcalendar/interaction"),
-        ]);
+      const [
+        { default: dayGridPlugin },
+        { default: timeGridPlugin },
+        { default: interactionPlugin },
+      ] = await Promise.all([
+        import("@fullcalendar/daygrid"),
+        import("@fullcalendar/timegrid"),
+        import("@fullcalendar/interaction"),
+      ]);
       setPlugins([dayGridPlugin, timeGridPlugin, interactionPlugin]);
     };
     loadPlugins();
@@ -64,10 +72,17 @@ export default function Calendar() {
 
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return null;
 
-        const teacher = teachers.find((t) => t.id === parseInt(event.resourceId || "0"));
-        const teacherName = teacher ? `${teacher.first_name} ${teacher.last_name}` : "Unknown Teacher";
+        const teacher = teachers.find(
+          (t) => t.id === parseInt(event.resourceId || "0")
+        );
+        const teacherName = teacher
+          ? `${teacher.first_name} ${teacher.last_name}`
+          : "Unknown Teacher";
 
-        if (event.isUnavailable || (event.name && event.name.startsWith("Not Available"))) {
+        if (
+          event.isUnavailable ||
+          (event.name && event.name.startsWith("Not Available"))
+        ) {
           return {
             id: event.id.toString(),
             title: teacherName,
@@ -100,7 +115,10 @@ export default function Calendar() {
             timeRange: `${startDate.toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
-            })} - ${endDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+            })} - ${endDate.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}`,
             classType: event.class_type,
             classStatus: event.class_status,
             paymentStatus: event.payment_status,
@@ -139,7 +157,10 @@ export default function Calendar() {
           for (let j = 0; j < eventRanges.length; j++) {
             if (i === j) continue;
             // Check if events overlap
-            if (eventRanges[i].start < eventRanges[j].end && eventRanges[i].end > eventRanges[j].start) {
+            if (
+              eventRanges[i].start < eventRanges[j].end &&
+              eventRanges[i].end > eventRanges[j].start
+            ) {
               currentOverlap++;
             }
           }
@@ -149,7 +170,8 @@ export default function Calendar() {
         // Default width
         const defaultWidth = 120;
         // Only expand if more than 2 overlapping events
-        const expandedWidth = maxOverlap > 1 ? defaultWidth + (maxOverlap - 2) * 60 : defaultWidth;
+        const expandedWidth =
+          maxOverlap > 1 ? defaultWidth + (maxOverlap - 2) * 60 : defaultWidth;
 
         columnElement.style.minWidth = `${expandedWidth}px`;
         columnElement.style.width = `${expandedWidth}px`;
@@ -158,7 +180,9 @@ export default function Calendar() {
         // Also set the header cell width
         const date = columnElement.getAttribute("data-date");
         if (date) {
-          const headerCell = document.querySelector(`th[data-date=\"${date}\"]`) as HTMLElement;
+          const headerCell = document.querySelector(
+            `th[data-date=\"${date}\"]`
+          ) as HTMLElement;
           if (headerCell) {
             headerCell.style.minWidth = `${expandedWidth}px`;
             headerCell.style.width = `${expandedWidth}px`;
@@ -176,11 +200,28 @@ export default function Calendar() {
 
   const handleSelect = useCallback(
     async (selectInfo: DateSelectArg) => {
+      const selectedTeacher = teachers.find(
+        (t) => t.id === parseInt(selectedTeachers[0] || "0")
+      );
+      const teacherId = selectedTeacher?.id || teachers[0]?.id || 0;
+      // Check for overlapping events for this teacher
+      const overlap = events.some((event) => {
+        const eventTeacherId = event.resourceId || event.teacher_id?.toString();
+        if (String(eventTeacherId) !== String(teacherId)) return false;
+        const eventStart = new Date(event.startDate).getTime();
+        const eventEnd = new Date(event.endDate).getTime();
+        const selectStart = selectInfo.start.getTime();
+        const selectEnd = selectInfo.end.getTime();
+        return selectStart < eventEnd && selectEnd > eventStart;
+      });
+      if (overlap) {
+        alert(
+          "There is already a scheduled event for this teacher at the selected time."
+        );
+        return;
+      }
       const title = prompt("Please enter a title for your event:");
       if (title) {
-        const selectedTeacher = teachers.find((t) => t.id === parseInt(selectedTeachers[0] || "0"));
-        const teacherId = selectedTeacher?.id || teachers[0]?.id || 0;
-
         // Create optimistic event object
         const optimisticEvent: Event = {
           id: Date.now(), // Temporary ID
@@ -206,8 +247,14 @@ export default function Calendar() {
 
         try {
           // Format dates in UTC to match backend's dayjs format
-          const startDate = new Date(selectInfo.start.getTime() - selectInfo.start.getTimezoneOffset() * 60000);
-          const endDate = new Date(selectInfo.end.getTime() - selectInfo.end.getTimezoneOffset() * 60000);
+          const startDate = new Date(
+            selectInfo.start.getTime() -
+              selectInfo.start.getTimezoneOffset() * 60000
+          );
+          const endDate = new Date(
+            selectInfo.end.getTime() -
+              selectInfo.end.getTimezoneOffset() * 60000
+          );
 
           // Create the calendar entry
           const calendarResponse = await calendarApi.createCalendar({
@@ -326,6 +373,11 @@ export default function Calendar() {
     [events, updateEvent]
   );
 
+  const handleEventClick = useCallback((clickInfo: any) => {
+    setSelectedEvent(clickInfo.event);
+    setModalOpen(true);
+  }, []);
+
   if (plugins.length === 0) {
     return <div>Loading calendar plugins...</div>;
   }
@@ -339,98 +391,155 @@ export default function Calendar() {
   }
   console.log(teachers);
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <TeacherSelector
-          teachers={teachers.map((t) => ({
-            id: String(t.id),
-            name: `${t.first_name} ${t.last_name}`,
-            color: t.color,
-          }))}
-          selectedTeachers={selectedTeachers}
-          onTeacherSelect={setSelectedTeachers}
-        />
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="h-[calc(100vh-250px)] overflow-x-auto">
-            <FullCalendar
-              plugins={plugins}
-              initialView="timeGridWeek"
-              headerToolbar={{
-                left: "prev,next today",
-                center: "title",
-                right: "dayGridMonth,timeGridWeek,timeGridDay",
-              }}
-              firstDay={1}
-              editable={true}
-              selectable={true}
-              selectMirror={true}
-              dayMaxEvents={true}
-              weekends={true}
-              events={processedEvents}
-              select={handleSelect}
-              eventDrop={handleEventDrop}
-              eventResize={handleEventResize}
-              eventResizableFromStart={true}
-              height="100%"
-              slotMinTime="00:00:00"
-              slotMaxTime="24:00:00"
-              allDaySlot={false}
-              nowIndicator={true}
-              timeZone="local"
-              eventTimeFormat={{
-                hour: "2-digit",
-                minute: "2-digit",
-                meridiem: false,
-                hour12: false,
-              }}
-              eventContent={(eventInfo) => {
-                const { isUnavailableBlock } = eventInfo.event.extendedProps;
-                if (isUnavailableBlock) {
+    <div className="calendar-container">
+      <div className="calendar-wrapper">
+        <div className="calendar-flex">
+          <div className="teacher-selector-container">
+            <TeacherSelector
+              teachers={teachers.map((t) => ({
+                id: String(t.id),
+                name: `${t.first_name} ${t.last_name}`,
+                color: t.color,
+              }))}
+              selectedTeachers={selectedTeachers}
+              onTeacherSelect={setSelectedTeachers}
+            />
+          </div>
+          <div className="calendar-content">
+            <div className="calendar-scrollable">
+              <FullCalendar
+                plugins={plugins}
+                initialView="timeGridWeek"
+                customButtons={{
+                  createEvent: {
+                    text: "Create New Event",
+                    click: () => setCreateModalOpen(true),
+                  },
+                }}
+                headerToolbar={{
+                  left: "prev,next createEvent",
+                  center: "title",
+                  right: "dayGridMonth,timeGridWeek,timeGridDay",
+                }}
+                firstDay={1}
+                editable={true}
+                selectable={true}
+                selectMirror={true}
+                dayMaxEvents={true}
+                weekends={true}
+                events={processedEvents}
+                select={handleSelect}
+                eventDrop={handleEventDrop}
+                eventResize={handleEventResize}
+                eventResizableFromStart={true}
+                height="100%"
+                slotMinTime="00:00:00"
+                slotMaxTime="24:00:00"
+                allDaySlot={false}
+                nowIndicator={true}
+                timeZone="local"
+                eventTimeFormat={{
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  meridiem: false,
+                  hour12: false,
+                }}
+                slotLabelFormat={{
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  meridiem: false,
+                  hour12: false,
+                }}
+                eventContent={(eventInfo) => {
+                  const { isUnavailableBlock } = eventInfo.event.extendedProps;
+                  if (isUnavailableBlock) {
+                    return {
+                      html: `
+                    <div style="
+                      background:#e5e7eb;
+                      color:#374151;
+                      padding:8px;
+                      border-radius:6px;
+                      text-align:center;
+                      pointer-events:none;
+                      z-index:1;
+                    ">
+                      <span style="font-weight:500;">${eventInfo.event.title} - N/A</span>
+                    </div>
+                  `,
+                    };
+                  }
+                  const { extendedProps } = eventInfo.event;
                   return {
                     html: `
-                      <div style="
-                        background:#e5e7eb;
-                        color:#374151;
-                        padding:8px;
-                        border-radius:6px;
-                        text-align:center;
-                        pointer-events:none;
-                        z-index:1;
-                      ">
-                        <span style="font-weight:500;">${eventInfo.event.title} - N/A</span>
-                      </div>
-                    `,
-                  };
-                }
-                const { extendedProps } = eventInfo.event;
-                return {
-                  html: `
-                    <div class="fc-event-main-content">
-                      <div class="fc-event-title-container">
-                        <div class="fc-event-title fc-sticky">
-                          <div class="fc-event-header">
-                            ${eventInfo.event.title}
-                          </div>
-                          <div class="fc-event-details">
-                            <div class="fc-event-teacher">${extendedProps.teacherName}</div>
-                            <div class="fc-event-student">${extendedProps.studentName}</div>
-                            <div class="fc-event-time">${extendedProps.timeRange}</div>
-                          </div>
+                  <div className="fc-event-main-content">
+                    <div className="fc-event-title-container">
+                      <div className="fc-event-title fc-sticky">
+                        <div className="fc-event-header">
+                          ${eventInfo.event.title}
+                        </div>
+                        <div className="fc-event-details">
+                          <div className="fc-event-teacher">${extendedProps.teacherName}</div>
+                          <div className="fc-event-student">${extendedProps.studentName}</div>
+                          <div className="fc-event-time">${extendedProps.timeRange}</div>
                         </div>
                       </div>
                     </div>
-                  `,
-                };
-              }}
-              slotDuration="00:15:00"
-              slotLabelInterval="01:00"
-              expandRows={true}
-            />
+                  </div>
+                `,
+                  };
+                }}
+                slotDuration="00:15:00"
+                slotLabelInterval="01:00"
+                expandRows={true}
+                eventClick={handleEventClick}
+              />
+            </div>
           </div>
         </div>
       </div>
       <CalendarStyles />
+      {modalOpen && selectedEvent && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2 className="modal-title">Event Details</h2>
+            <div className="modal-field">
+              <b>Title:</b> {selectedEvent.title}
+            </div>
+            <div className="modal-field">
+              <b>Start:</b> {selectedEvent.start?.toLocaleString()}
+            </div>
+            <div className="modal-field">
+              <b>End:</b> {selectedEvent.end?.toLocaleString()}
+            </div>
+            <div className="modal-field">
+              <b>Teacher:</b> {selectedEvent.extendedProps?.teacherName}
+            </div>
+            <div className="modal-field">
+              <b>Student:</b> {selectedEvent.extendedProps?.studentName}
+            </div>
+            <div className="modal-actions">
+              <button
+                className="modal-close-button"
+                onClick={() => setModalOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {createModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-create-content">
+            <h2 className="modal-create-title">Create New Event</h2>
+            <EventCreateForm
+              teachers={teachers}
+              onClose={() => setCreateModalOpen(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
