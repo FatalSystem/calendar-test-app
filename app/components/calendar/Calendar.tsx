@@ -2,7 +2,13 @@
 
 import { useState, useCallback, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { EventDropArg, DateSelectArg, PluginDef } from "@fullcalendar/core";
+import {
+  EventDropArg,
+  DateSelectArg,
+  PluginDef,
+  EventInput,
+  EventClickArg,
+} from "@fullcalendar/core";
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { Event } from "./types";
 import TeacherSelector from "./TeacherSelector";
@@ -34,7 +40,7 @@ export default function Calendar() {
 
   const [plugins, setPlugins] = useState<PluginDef[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [selectedEvent, setSelectedEvent] = useState<EventInput | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   useEffect(() => {
@@ -250,41 +256,39 @@ export default function Calendar() {
           const startDate = new Date(
             selectInfo.start.getTime() -
               selectInfo.start.getTimezoneOffset() * 60000
-          );
+          ).toISOString();
           const endDate = new Date(
             selectInfo.end.getTime() -
               selectInfo.end.getTimezoneOffset() * 60000
-          );
+          ).toISOString();
 
-          // Create the calendar entry
-          const calendarResponse = await calendarApi.createCalendar({
-            class_type: title,
-            student_id: 5,
+          const response = await calendarApi.createLesson({
+            startDate,
+            endDate,
+            name: title,
             teacher_id: teacherId,
+            student_id: 5, // Default student ID
+            class_type: "regular",
             class_status: "scheduled",
             payment_status: "unpaid",
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-            duration: 50,
+            student_name_text: "Student Name",
+            calendar_id: 0,
           });
 
-          // Replace optimistic event with real one
-          updateEvent(Date.now(), calendarResponse);
-        } catch (error) {
-          // Revert optimistic update on error
-          updateEvent(Date.now(), optimisticEvent);
-          console.error("Error creating event:", {
-            error: error instanceof Error ? error.message : "Unknown error",
-            response:
-              error instanceof Error && "response" in error
-                ? (error as { response?: { data: unknown } }).response?.data
-                : undefined,
-            stack: error instanceof Error ? error.stack : undefined,
+          // Update the event with the real ID from the backend
+          updateEvent(Date.now(), {
+            ...optimisticEvent,
+            id: response.id,
           });
+        } catch (error) {
+          console.error("Failed to create event:", error);
+          // Remove the optimistic event
+          updateEvent(Date.now(), null);
+          alert("Failed to create event. Please try again.");
         }
       }
     },
-    [selectedTeachers, teachers, updateEvent]
+    [teachers, selectedTeachers, events, updateEvent]
   );
 
   const handleEventDrop = useCallback(
@@ -373,7 +377,7 @@ export default function Calendar() {
     [events, updateEvent]
   );
 
-  const handleEventClick = useCallback((clickInfo: any) => {
+  const handleEventClick = useCallback((clickInfo: EventClickArg) => {
     setSelectedEvent(clickInfo.event);
     setModalOpen(true);
   }, []);

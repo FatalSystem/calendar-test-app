@@ -16,7 +16,7 @@ const TEACHER_COLORS = [
   "#c0392b",
 ];
 
-interface TeacherWithColor extends BackendTeacher {
+export interface TeacherWithColor extends BackendTeacher {
   color: string;
 }
 
@@ -30,7 +30,10 @@ interface CalendarContextProps {
   setTeachers: (teachers: BackendTeacher[]) => void;
   setSelectedTeachers: (teacherIds: string[]) => void;
   addEvent: (event: Event) => void;
-  updateEvent: (eventId: number, updatedEvent: Partial<Event>) => Promise<void>;
+  updateEvent: (
+    eventId: number,
+    updatedEvent: Partial<Event> | null
+  ) => Promise<void>;
   deleteEvent: (eventId: number) => void;
   fetchEvents: () => Promise<void>;
   fetchTeachers: () => Promise<void>;
@@ -67,7 +70,12 @@ export const CalendarProvider: React.FC<{ children: React.ReactNode }> = ({
   const addEvent = (event: Event) => setEventsState((prev) => [...prev, event]);
 
   const updateEvent = useCallback(
-    async (eventId: number, updatedEvent: Partial<Event>) => {
+    async (eventId: number, updatedEvent: Partial<Event> | null) => {
+      if (updatedEvent === null) {
+        setEventsState((prev) => prev.filter((event) => event.id !== eventId));
+        return;
+      }
+
       setEventsState((prev) =>
         prev.map((event) =>
           event.id === eventId ? { ...event, ...updatedEvent } : event
@@ -82,6 +90,11 @@ export const CalendarProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       } catch (error) {
         console.error("Error updating event:", error);
+        // Revert the optimistic update
+        setEventsState((prev) =>
+          prev.map((event) => (event.id === eventId ? { ...event } : event))
+        );
+        throw error;
       }
     },
     []
@@ -129,7 +142,7 @@ export const CalendarProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedTeachers.length]);
 
   const getTeacherColor = (teacherId: number) => {
     const teacher = teachers.find((t) => t.id === teacherId);

@@ -1,16 +1,19 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { calendarApi } from "@/app/api/calendar";
 import { useCalendarContext } from "@/app/store/CalendarContext";
 import React from "react";
 import "./EventCreateForm.css";
+import { TeacherWithColor } from "@/app/store/CalendarContext";
+
+interface EventCreateFormProps {
+  teachers: TeacherWithColor[];
+  onClose: () => void;
+}
 
 export default function EventCreateForm({
   teachers,
   onClose,
-}: {
-  teachers: any[];
-  onClose: () => void;
-}) {
+}: EventCreateFormProps) {
   const [title, setTitle] = useState("");
   const [teacherId, setTeacherId] = useState(teachers[0]?.id || "");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -21,21 +24,25 @@ export default function EventCreateForm({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
-  // (simple version for now)
-  if (typeof window !== "undefined") {
-    window.onclick = (e: any) => {
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
       if (
         dropdownOpen &&
         dropdownRef.current &&
-        !dropdownRef.current.contains(e.target)
+        !dropdownRef.current.contains(event.target as Node)
       ) {
         setDropdownOpen(false);
       }
     };
-  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    window.addEventListener("click", handleClickOutside);
+    return () => {
+      window.removeEventListener("click", handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!title || !teacherId || !start || !end) return;
     // Check for overlap
     const overlap = events.some((event) => {
@@ -87,7 +94,8 @@ export default function EventCreateForm({
       updateEvent(Date.now(), calendarResponse);
       await fetchEvents();
       onClose();
-    } catch (e) {
+    } catch (error) {
+      console.error("Failed to create event:", error);
       alert("Failed to create event");
     } finally {
       setLoading(false);
