@@ -84,7 +84,7 @@ export default function EventCreateForm({
       const calendarResponse = await calendarApi.createCalendar({
         class_type: title,
         student_id: 5,
-        teacher_id: teacherId,
+        teacher_id: Number(teacherId),
         class_status: "scheduled",
         payment_status: "unpaid",
         startDate: new Date(start).toISOString(),
@@ -132,9 +132,7 @@ export default function EventCreateForm({
                 style={{ background: selectedTeacher?.color || "#2563eb" }}
               ></span>
               {selectedTeacher
-                ? selectedTeacher.first_name
-                  ? `${selectedTeacher.first_name} ${selectedTeacher.last_name}`
-                  : selectedTeacher.name
+                ? `${selectedTeacher.first_name} ${selectedTeacher.last_name}`
                 : "Select teacher"}
             </span>
             <svg
@@ -171,7 +169,7 @@ export default function EventCreateForm({
                     className="inline-block w-4 h-4 rounded-full border"
                     style={{ background: t.color || "#2563eb" }}
                   ></span>
-                  {t.first_name ? `${t.first_name} ${t.last_name}` : t.name}
+                  {`${t.first_name} ${t.last_name}`}
                 </button>
               ))}
             </div>

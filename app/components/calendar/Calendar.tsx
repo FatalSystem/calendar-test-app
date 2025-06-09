@@ -381,12 +381,12 @@ export default function Calendar() {
     const eventInput: EventInput = {
       id: clickInfo.event.id,
       title: clickInfo.event.title,
-      start: clickInfo.event.start,
-      end: clickInfo.event.end,
+      start: clickInfo.event.start || undefined,
+      end: clickInfo.event.end || undefined,
       extendedProps: clickInfo.event.extendedProps,
       backgroundColor: clickInfo.event.backgroundColor,
       borderColor: clickInfo.event.borderColor,
-      resourceId: clickInfo.event.getResources()[0]?.id,
+      resourceId: clickInfo.event.extendedProps?.resourceId,
     };
     setSelectedEvent(eventInput);
     setModalOpen(true);
