@@ -378,7 +378,17 @@ export default function Calendar() {
   );
 
   const handleEventClick = useCallback((clickInfo: EventClickArg) => {
-    setSelectedEvent(clickInfo.event);
+    const eventInput: EventInput = {
+      id: clickInfo.event.id,
+      title: clickInfo.event.title,
+      start: clickInfo.event.start,
+      end: clickInfo.event.end,
+      extendedProps: clickInfo.event.extendedProps,
+      backgroundColor: clickInfo.event.backgroundColor,
+      borderColor: clickInfo.event.borderColor,
+      resourceId: clickInfo.event.getResources()[0]?.id,
+    };
+    setSelectedEvent(eventInput);
     setModalOpen(true);
   }, []);
 
