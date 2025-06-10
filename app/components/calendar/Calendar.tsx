@@ -631,7 +631,7 @@ export default function Calendar() {
                 selectMirror={true}
                 dayMaxEvents={true}
                 weekends={true}
-                events={filteredEvents}
+                events={filteredEvents as EventInput[]}
                 select={handleSelect}
                 eventDrop={handleEventDrop}
                 eventResize={handleEventResize}
