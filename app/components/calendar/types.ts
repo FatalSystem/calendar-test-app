@@ -2,7 +2,7 @@ import { BackendTeacher, Student, ClassType, CalendarLink } from "@/app/api/cale
 
 export type { BackendTeacher, Student, ClassType, CalendarLink };
 
-export type LessonStatus = 'completed' | 'cancelled' | 'student_no_show' | 'teacher_no_show';
+export type LessonStatus = 'scheduled' | 'completed' | 'cancelled' | 'student_no_show' | 'teacher_no_show';
 export type PaymentStatus = 'paid' | 'reserved';
 
 export interface Event {
