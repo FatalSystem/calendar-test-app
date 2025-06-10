@@ -51,7 +51,13 @@ const COMMON_TIMEZONES = [
   // Add more as needed
 ];
 
-function CustomTimezoneDropdown({ value, onChange }) {
+function CustomTimezoneDropdown({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const selectedLabel = value === "local" ? "Local Time" : value;
   return (
