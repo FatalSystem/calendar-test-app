@@ -588,23 +588,6 @@ export default function Calendar() {
             Timezone:
           </label>
           <CustomTimezoneDropdown value={timezone} onChange={setTimezone} />
-          {/* Manager only: Teacher selector */}
-          {role === "manager" && (
-            <div style={{ minWidth: 180 }}>
-              <select
-                className="input"
-                style={{ minWidth: 180 }}
-                value={selectedTeacherId}
-                onChange={(e) => setSelectedTeacherId(e.target.value)}
-              >
-                {teachers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.first_name} {t.last_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
       </div>
       <div className="calendar-wrapper">
