@@ -249,7 +249,7 @@ export default function Calendar() {
         const startDate = new Date(event.startDate);
         const endDate = new Date(event.endDate);
         const teacher = teachers.find((t) => t.id === event.teacher_id);
-        const teacherColor = getTeacherColor(event.teacher_id);
+        const teacherColor = getTeacherColor(event.teacher_id ?? 0);
         const teacherName = teacher
           ? `${teacher.first_name} ${teacher.last_name}`
           : "";
