@@ -4,6 +4,7 @@ import { useCalendarContext } from "@/app/store/CalendarContext";
 import React from "react";
 import "./EventCreateForm.css";
 import { TeacherWithColor } from "@/app/store/CalendarContext";
+import type { LessonStatus, PaymentStatus } from "./types";
 
 interface EventCreateFormProps {
   teachers: TeacherWithColor[];
@@ -203,8 +204,8 @@ export default function EventCreateForm({
         teacherColor: "#3174ad",
         eventColor: "#3174ad",
         class_type: classType,
-        class_status: "scheduled",
-        payment_status: "reserved",
+        class_status: "scheduled" as LessonStatus,
+        payment_status: "reserved" as PaymentStatus,
         duration: duration,
         isUnavailable: false,
         student_name: lessonType === "group" ? selectedGroupId : "5",
@@ -222,8 +223,8 @@ export default function EventCreateForm({
         class_type: classType,
         student_id: lessonType === "group" ? parseInt(selectedGroupId) : 5,
         teacher_id: Number(teacherId),
-        class_status: "scheduled",
-        payment_status: "reserved",
+        class_status: "scheduled" as LessonStatus,
+        payment_status: "reserved" as PaymentStatus,
         startDate: new Date(start).toISOString(),
         endDate: new Date(end).toISOString(),
         duration: duration,

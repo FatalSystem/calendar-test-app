@@ -201,18 +201,6 @@ export default function Calendar() {
     }
   }, [role, teachers, selectedTeacherId]);
 
-  // Determine which teacher's calendar to show
-  const visibleTeacherId =
-    role === "teacher" ? currentTeacherId : selectedTeacherId;
-
-  // Filter events for the visible teacher only
-  const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
-      const teacherId = event.resourceId || event.teacher_id?.toString();
-      return String(teacherId) === String(visibleTeacherId);
-    });
-  }, [events, visibleTeacherId]);
-
   useEffect(() => {
     const loadPlugins = async () => {
       const [
@@ -631,7 +619,7 @@ export default function Calendar() {
                 selectMirror={true}
                 dayMaxEvents={true}
                 weekends={true}
-                events={filteredEvents as EventInput[]}
+                events={processedEvents}
                 select={handleSelect}
                 eventDrop={handleEventDrop}
                 eventResize={handleEventResize}
