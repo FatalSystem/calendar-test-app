@@ -7,7 +7,7 @@ import { TeacherWithColor } from "@/app/store/CalendarContext";
 
 interface EventCreateFormProps {
   teachers: TeacherWithColor[];
-  groups?: Group[]; 
+  groups?: Group[];
   onClose: () => void;
 }
 
@@ -46,7 +46,7 @@ function getUserRole() {
 
 export default function EventCreateForm({
   teachers,
-  groups = [], 
+  groups = [],
   onClose,
 }: EventCreateFormProps) {
   const [title, setTitle] = useState("");
@@ -55,22 +55,22 @@ export default function EventCreateForm({
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [loading, setLoading] = useState(false);
-  
-  const [lessonType, setLessonType] = useState("individual"); 
+
+  const [lessonType, setLessonType] = useState("individual");
   const [lessonTypeDropdownOpen, setLessonTypeDropdownOpen] = useState(false);
-  
+
   const [classType, setClassType] = useState("regular");
   const [classTypeDropdownOpen, setClassTypeDropdownOpen] = useState(false);
   const [duration, setDuration] = useState(50);
   const [durationDropdownOpen, setDurationDropdownOpen] = useState(false);
   const [studentName, setStudentName] = useState("");
-  
+
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
-  
+
   const [repeatMode, setRepeatMode] = useState("none");
   const [repeatDays, setRepeatDays] = useState<string[]>([]);
-  
+
   const { events, updateEvent, fetchEvents } = useCalendarContext();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const lessonTypeDropdownRef = useRef<HTMLDivElement>(null);
@@ -80,13 +80,14 @@ export default function EventCreateForm({
 
   const userRole = getUserRole();
 
-  const availableClassTypes = classTypes.filter(type => 
-    !type.adminOnly || (userRole === "accountant" || userRole === "super_admin")
+  const availableClassTypes = classTypes.filter(
+    (type) =>
+      !type.adminOnly || userRole === "accountant" || userRole === "super_admin"
   );
 
   const lessonTypeOptions = [
     { value: "individual", label: "Individual Lesson" },
-    { value: "group", label: "Group Lesson" }
+    { value: "group", label: "Group Lesson" },
   ];
 
   useEffect(() => {
@@ -98,7 +99,7 @@ export default function EventCreateForm({
   }, [start, duration]);
 
   useEffect(() => {
-    const selectedType = classTypes.find(type => type.value === classType);
+    const selectedType = classTypes.find((type) => type.value === classType);
     if (selectedType) {
       setDuration(selectedType.duration);
     }
@@ -155,11 +156,16 @@ export default function EventCreateForm({
     return () => {
       window.removeEventListener("click", handleClickOutside);
     };
-  }, [dropdownOpen, lessonTypeDropdownOpen, classTypeDropdownOpen, durationDropdownOpen, groupDropdownOpen]);
+  }, [
+    dropdownOpen,
+    lessonTypeDropdownOpen,
+    classTypeDropdownOpen,
+    durationDropdownOpen,
+    groupDropdownOpen,
+  ]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    
 
     if (!title || !teacherId || !start || !end) return;
     if (lessonType === "individual" && !studentName) return;
@@ -174,18 +180,20 @@ export default function EventCreateForm({
       const selectEnd = new Date(end).getTime();
       return selectStart < eventEnd && selectEnd > eventStart;
     });
-    
+
     if (overlap) {
       alert(
         "There is already a scheduled event for this teacher at the selected time."
       );
       return;
     }
-    
+
     setLoading(true);
     try {
-      const selectedGroup = groups.find(g => g.id.toString() === selectedGroupId);
-      
+      const selectedGroup = groups.find(
+        (g) => g.id.toString() === selectedGroupId
+      );
+
       const optimisticEvent = {
         id: Date.now(),
         startDate: new Date(start).toISOString(),
@@ -196,30 +204,31 @@ export default function EventCreateForm({
         eventColor: "#3174ad",
         class_type: classType,
         class_status: "scheduled",
-        payment_status: "unpaid",
+        payment_status: "reserved",
         duration: duration,
         isUnavailable: false,
         student_name: lessonType === "group" ? selectedGroupId : "5",
-        student_name_text: lessonType === "group" ? selectedGroup?.name || "" : studentName,
+        student_name_text:
+          lessonType === "group" ? selectedGroup?.name || "" : studentName,
         calendar_id: 0,
         student_id: lessonType === "group" ? parseInt(selectedGroupId) : 5,
         lesson_type: lessonType,
         group_id: lessonType === "group" ? parseInt(selectedGroupId) : null,
       };
-      
+
       updateEvent(Date.now(), optimisticEvent);
-      
+
       const calendarResponse = await calendarApi.createCalendar({
         class_type: classType,
         student_id: lessonType === "group" ? parseInt(selectedGroupId) : 5,
         teacher_id: Number(teacherId),
         class_status: "scheduled",
-        payment_status: "unpaid",
+        payment_status: "reserved",
         startDate: new Date(start).toISOString(),
         endDate: new Date(end).toISOString(),
         duration: duration,
       });
-      
+
       updateEvent(Date.now(), calendarResponse);
       await fetchEvents();
       onClose();
@@ -234,9 +243,13 @@ export default function EventCreateForm({
   const selectedTeacher = teachers.find(
     (t) => String(t.id) === String(teacherId)
   );
-  const selectedClassType = availableClassTypes.find(type => type.value === classType);
-  const selectedLessonType = lessonTypeOptions.find(type => type.value === lessonType);
-  const selectedGroup = groups.find(g => g.id.toString() === selectedGroupId);
+  const selectedClassType = availableClassTypes.find(
+    (type) => type.value === classType
+  );
+  const selectedLessonType = lessonTypeOptions.find(
+    (type) => type.value === lessonType
+  );
+  const selectedGroup = groups.find((g) => g.id.toString() === selectedGroupId);
 
   return (
     <form onSubmit={handleSubmit} className="form compact">
@@ -499,7 +512,7 @@ export default function EventCreateForm({
                   onClick={() => setGroupDropdownOpen((v) => !v)}
                 >
                   <span>
-                    {selectedGroup 
+                    {selectedGroup
                       ? `${selectedGroup.name} (${selectedGroup.student_count} students)`
                       : "Select group"}
                   </span>
@@ -527,7 +540,9 @@ export default function EventCreateForm({
                           type="button"
                           key={group.id}
                           className={`dropdown-item ${
-                            group.id.toString() === selectedGroupId ? "selected" : ""
+                            group.id.toString() === selectedGroupId
+                              ? "selected"
+                              : ""
                           }`}
                           onClick={() => {
                             setSelectedGroupId(group.id.toString());
@@ -536,7 +551,9 @@ export default function EventCreateForm({
                         >
                           <div>
                             <div>{group.name}</div>
-                            <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+                            <div
+                              style={{ fontSize: "0.75rem", color: "#6b7280" }}
+                            >
                               {group.student_count} students
                               {group.level && ` • ${group.level}`}
                             </div>
@@ -569,7 +586,11 @@ export default function EventCreateForm({
               if (newMode === "none") setRepeatDays([]);
             }}
           >
-            <span>{repeatMode === "none" ? "Does not repeat" : "Weekly on certain days"}</span>
+            <span>
+              {repeatMode === "none"
+                ? "Does not repeat"
+                : "Weekly on certain days"}
+            </span>
             <svg
               className="w-4 h-4 ml-2"
               fill="none"
@@ -591,7 +612,13 @@ export default function EventCreateForm({
       {repeatMode === "weekly" && (
         <div>
           <label className="label">Repeat on Days</label>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: "0.5rem",
+            }}
+          >
             {weekDays.map((day) => (
               <label
                 key={day.value}
@@ -603,9 +630,13 @@ export default function EventCreateForm({
                   border: "1px solid #d1d5db",
                   borderRadius: "0.5rem",
                   cursor: "pointer",
-                  backgroundColor: repeatDays.includes(day.value) ? "#dbeafe" : "#f9fafb",
-                  borderColor: repeatDays.includes(day.value) ? "#3b82f6" : "#d1d5db",
-                  fontSize: "0.75rem"
+                  backgroundColor: repeatDays.includes(day.value)
+                    ? "#dbeafe"
+                    : "#f9fafb",
+                  borderColor: repeatDays.includes(day.value)
+                    ? "#3b82f6"
+                    : "#d1d5db",
+                  fontSize: "0.75rem",
                 }}
               >
                 <input
@@ -615,7 +646,7 @@ export default function EventCreateForm({
                     if (e.target.checked) {
                       setRepeatDays([...repeatDays, day.value]);
                     } else {
-                      setRepeatDays(repeatDays.filter(d => d !== day.value));
+                      setRepeatDays(repeatDays.filter((d) => d !== day.value));
                     }
                   }}
                   style={{ width: "0.75rem", height: "0.75rem" }}

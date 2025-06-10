@@ -387,7 +387,7 @@ export default function Calendar() {
           eventColor: "#3174ad",
           class_type: "regular",
           class_status: "scheduled",
-          payment_status: "unpaid",
+          payment_status: "reserved",
           duration: 50,
           isUnavailable: false,
           student_name: "5",
@@ -418,7 +418,7 @@ export default function Calendar() {
             student_id: 5, // Default student ID
             class_type: "regular",
             class_status: "scheduled",
-            payment_status: "unpaid",
+            payment_status: "reserved",
             student_name_text: "Student Name",
             calendar_id: 0,
           });
