@@ -24,6 +24,133 @@ const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
   loading: () => <div>Loading calendar...</div>,
 });
 
+// Helper to get a comprehensive list of timezones
+const COMMON_TIMEZONES = [
+  "local",
+  "UTC",
+  "Europe/Kyiv",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Moscow",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Sao_Paulo",
+  "Asia/Tokyo",
+  "Asia/Shanghai",
+  "Asia/Hong_Kong",
+  "Asia/Singapore",
+  "Asia/Bangkok",
+  "Asia/Dubai",
+  "Australia/Sydney",
+  "Australia/Melbourne",
+  "Africa/Johannesburg",
+  "Pacific/Auckland",
+  // Add more as needed
+];
+
+function CustomTimezoneDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const selectedLabel = value === "local" ? "Local Time" : value;
+  return (
+    <div style={{ position: "relative", minWidth: 180 }}>
+      <button
+        type="button"
+        className="input"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          width: "100%",
+          cursor: "pointer",
+          borderRadius: 8,
+          padding: "8px 12px", // Better padding
+          border: "1px solid #d1d5db", // Light border
+          backgroundColor: "white", // White background
+          color: "#374151", // Dark text
+          fontSize: "14px",
+          fontWeight: "500",
+        }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{selectedLabel}</span>
+        <svg
+          style={{ marginLeft: 8, width: 16, height: 16 }}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 20,
+            top: "110%",
+            left: 0,
+            width: "100%",
+            background: "white", // Changed from dark to white
+            border: "1px solid #e5e7eb", // Light border
+            borderRadius: 8,
+            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", // Better shadow
+            maxHeight: 260,
+            overflowY: "auto",
+          }}
+        >
+          {COMMON_TIMEZONES.map((tz) => (
+            <button
+              key={tz}
+              type="button"
+              className="dropdown-item"
+              style={{
+                width: "100%",
+                textAlign: "left",
+                padding: "10px 16px",
+                background: tz === value ? "#dbeafe" : "transparent", // Blue selection like calendar
+                color: tz === value ? "#1d4ed8" : "#374151", // Blue text when selected
+                fontWeight: tz === value ? 600 : 400,
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+                fontSize: 14,
+              }}
+              onClick={() => {
+                onChange(tz);
+                setOpen(false);
+              }}
+            >
+              {tz === "local" ? "Local Time" : tz}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper to get user role and teacher id (mocked via localStorage for now)
+function getUserRole() {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("user-role") || "teacher"; // 'teacher' or 'manager'
+  }
+  return "teacher";
+}
+function getCurrentTeacherId() {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("current-teacher-id") || "";
+  }
+  return "";
+}
+
 export default function Calendar() {
   const {
     events,
@@ -42,6 +169,43 @@ export default function Calendar() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<EventInput | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [timezone, setTimezone] = useState(
+    typeof window !== "undefined"
+      ? localStorage.getItem("calendar-tz") || "local"
+      : "local"
+  );
+
+  const role = getUserRole();
+  const currentTeacherId = getCurrentTeacherId();
+  // For manager: selected teacher state
+  const [selectedTeacherId, setSelectedTeacherId] = useState(() => {
+    if (role === "manager" && teachers.length > 0) {
+      return String(teachers[0].id);
+    }
+    if (role === "teacher") {
+      return currentTeacherId;
+    }
+    return "";
+  });
+
+  // Update selected teacher if teachers list changes (for manager)
+  useEffect(() => {
+    if (role === "manager" && teachers.length > 0 && !selectedTeacherId) {
+      setSelectedTeacherId(String(teachers[0].id));
+    }
+  }, [role, teachers, selectedTeacherId]);
+
+  // Determine which teacher's calendar to show
+  const visibleTeacherId =
+    role === "teacher" ? currentTeacherId : selectedTeacherId;
+
+  // Filter events for the visible teacher only
+  const filteredEvents = useMemo(() => {
+    return events.filter((event) => {
+      const teacherId = event.resourceId || event.teacher_id?.toString();
+      return String(teacherId) === String(visibleTeacherId);
+    });
+  }, [events, visibleTeacherId]);
 
   useEffect(() => {
     const loadPlugins = async () => {
@@ -66,49 +230,28 @@ export default function Calendar() {
     loadData();
   }, [fetchEvents, fetchTeachers]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("calendar-tz", timezone);
+    }
+  }, [timezone]);
+
   const processedEvents = useMemo(() => {
     return events
-      .filter((event) => {
-        const teacherId = event.resourceId || event.teacher_id?.toString();
-        return selectedTeachers.includes(teacherId || "");
-      })
+      .filter((event) => selectedTeachers.includes(String(event.teacher_id)))
       .map((event) => {
         const startDate = new Date(event.startDate);
         const endDate = new Date(event.endDate);
-
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return null;
-
-        const teacher = teachers.find(
-          (t) => t.id === parseInt(event.resourceId || "0")
-        );
+        const teacher = teachers.find((t) => t.id === event.teacher_id);
+        const teacherColor = getTeacherColor(event.teacher_id);
         const teacherName = teacher
           ? `${teacher.first_name} ${teacher.last_name}`
-          : "Unknown Teacher";
-
-        if (
-          event.isUnavailable ||
-          (event.name && event.name.startsWith("Not Available"))
-        ) {
-          return {
-            id: event.id.toString(),
-            title: teacherName,
-            start: startDate,
-            end: endDate,
-            resourceId: event.resourceId || event.teacher_id?.toString(),
-            isUnavailableBlock: true,
-            backgroundColor: "#e5e7eb", // Tailwind gray-200
-            borderColor: "#e5e7eb",
-            display: "background", // This makes it a background event
-            editable: false, // Disable dragging
-            interactive: false, // Disable clicking
-            extendedProps: {
-              teacherName,
-            },
-          };
-        }
-
-        const teacherColor = getTeacherColor(parseInt(event.resourceId || "0"));
-
+          : "";
+        // Add RSVR if reserved
+        const studentName =
+          event.payment_status === "reserved"
+            ? `RSVR ${event.student_name_text || "No Student"}`
+            : event.student_name_text || "No Student";
         const calendarEvent = {
           id: event.id.toString(),
           title: event.name || "Event",
@@ -117,7 +260,7 @@ export default function Calendar() {
           resourceId: event.resourceId || event.teacher_id?.toString(),
           extendedProps: {
             teacherName,
-            studentName: event.student_name_text || "No Student",
+            studentName,
             timeRange: `${startDate.toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
@@ -127,12 +270,11 @@ export default function Calendar() {
             })}`,
             classType: event.class_type,
             classStatus: event.class_status,
-            paymentStatus: event.payment_status,
+            // paymentStatus: event.payment_status, // REMOVE from display
           },
           backgroundColor: teacherColor,
           borderColor: teacherColor,
         };
-
         return calendarEvent;
       })
       .filter((event): event is NonNullable<typeof event> => event !== null);
@@ -406,6 +548,65 @@ export default function Calendar() {
   console.log(teachers);
   return (
     <div className="calendar-container">
+      <div
+        className="calendar-header"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "18px 24px 10px 24px",
+          borderRadius: 0,
+          marginBottom: 18,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <h2
+            style={{
+              margin: 0,
+              color: "#000",
+              fontWeight: 700,
+              fontSize: 28,
+              letterSpacing: -1,
+            }}
+          >
+            Calendar
+          </h2>
+          <span style={{ color: "#9ca3af", fontSize: 15, fontWeight: 400 }}>
+            Manage your schedule and lessons
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <label
+            style={{
+              color: "#fff",
+              marginRight: 8,
+              fontWeight: 500,
+              fontSize: 15,
+            }}
+          >
+            Timezone:
+          </label>
+          <CustomTimezoneDropdown value={timezone} onChange={setTimezone} />
+          {/* Manager only: Teacher selector */}
+          {role === "manager" && (
+            <div style={{ minWidth: 180 }}>
+              <select
+                className="input"
+                style={{ minWidth: 180 }}
+                value={selectedTeacherId}
+                onChange={(e) => setSelectedTeacherId(e.target.value)}
+              >
+                {teachers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.first_name} {t.last_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
       <div className="calendar-wrapper">
         <div className="calendar-flex">
           <div className="teacher-selector-container">
@@ -441,7 +642,7 @@ export default function Calendar() {
                 selectMirror={true}
                 dayMaxEvents={true}
                 weekends={true}
-                events={processedEvents}
+                events={filteredEvents}
                 select={handleSelect}
                 eventDrop={handleEventDrop}
                 eventResize={handleEventResize}
@@ -451,7 +652,7 @@ export default function Calendar() {
                 slotMaxTime="24:00:00"
                 allDaySlot={false}
                 nowIndicator={true}
-                timeZone="local"
+                timeZone={timezone}
                 eventTimeFormat={{
                   hour: "2-digit",
                   minute: "2-digit",

@@ -114,6 +114,13 @@ export interface BackendTeacher {
   TeacherRates: TeacherRate[];
 }
 
+interface UpdateBalancesParams {
+  student_id: number;
+  teacher_id: number;
+  lesson_type: string;
+  status: 'completed' | 'cancelled' | 'student_no_show' | 'teacher_no_show';
+}
+
 export const calendarApi = {
   // Auth endpoints
   login: async (email: string, password: string) => {
@@ -184,6 +191,21 @@ export const calendarApi = {
 
   updateEvent: async (id: string, data: { lesson_id: number }) => {
     const response = await api.put(`/calendar/events/${id}`, data);
+    return response.data;
+  },
+
+  updateBalances: async (params: UpdateBalancesParams) => {
+    const response = await api.post('/api/balances/update', params);
+    return response.data;
+  },
+
+  checkStudentBalance: async (studentId: number) => {
+    const response = await api.get(`/api/students/${studentId}/balance`);
+    return response.data;
+  },
+
+  checkAndRemoveReservedLessons: async () => {
+    const response = await axios.post('/api/lessons/check-reserved');
     return response.data;
   },
 };

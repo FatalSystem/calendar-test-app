@@ -2,6 +2,9 @@ import { BackendTeacher, Student, ClassType, CalendarLink } from "@/app/api/cale
 
 export type { BackendTeacher, Student, ClassType, CalendarLink };
 
+export type LessonStatus = 'completed' | 'cancelled' | 'student_no_show' | 'teacher_no_show';
+export type PaymentStatus = 'paid' | 'reserved';
+
 export interface Event {
   id: number;
   name: string;
@@ -12,8 +15,8 @@ export interface Event {
   teacherColor: string;
   eventColor: string;
   class_type: string;
-  class_status: string;
-  payment_status: string;
+  class_status: LessonStatus;
+  payment_status: PaymentStatus;
   duration: number;
   recurrenceRule?: string;
   isUnavailable: boolean;
@@ -21,6 +24,7 @@ export interface Event {
   student_name_text: string;
   calendar_id: number;
   student_id: number;
+  student_balance?: number;
   Student?: {
     first_name: string;
     last_name: string;

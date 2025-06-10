@@ -50,6 +50,14 @@ export default function CalendarStyles() {
         transform: translateY(0);
       }
 
+      .fc .fc-button-group .fc-button {
+        margin-right: 0.25rem !important;
+      }
+      
+      .fc .fc-button-group .fc-button:last-child {
+        margin-right: 0 !important;
+      }
+
       .fc .fc-timegrid-slot {
         height: 0.45rem !important;
       }

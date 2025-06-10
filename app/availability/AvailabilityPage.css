@@ -1,0 +1,49 @@
+body .container.availability {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #fff;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+.heading {
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  width: 100%;
+  margin-bottom: 15px;
+  border: 1px solid #e5e7eb;
+  padding: 10px;
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+input,
+select,
+button {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+button:hover {
+  background-color: #255a8f;
+}
