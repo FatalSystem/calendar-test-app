@@ -1,4 +1,5 @@
 import axios from "axios";
+import { LessonStatus, PaymentStatus } from "../components/calendar/types";
 
 // Create axios instance with default config
 const api = axios.create({
@@ -132,7 +133,7 @@ export const calendarApi = {
 
   // Calendar endpoints
   getLessons: async () => {
-    const response = await api.get("/lessons");
+    const response = await api.get("/calendar/events");
     return response.data;
   },
 
@@ -142,33 +143,65 @@ export const calendarApi = {
   },
 
   createLesson: async (lesson: Omit<Event, "id" | "createdAt" | "updatedAt">) => {
-    const response = await api.post("/lessons", lesson);
+    const response = await api.post("/calendar/events", lesson);
     return response.data;
   },
 
   updateLesson: async (id: number, lesson: Partial<Event>) => {
-    const response = await api.put(`/lessons/${id}`, lesson);
+    const response = await api.put(`/calendar/events/${id}`, lesson);
     return response.data;
   },
 
   deleteLesson: async (id: number) => {
-    const response = await api.delete(`/lessons/${id}`);
+    const response = await api.delete(`/calendar/events/${id}`);
     return response.data;
   },
 
   // Calendar management endpoints
-  createCalendar: async (calendar: {
+  createCalendar: async (data: {
     class_type: string;
     student_id: number;
     teacher_id: number;
-    class_status: string;
-    payment_status: string;
-    startDate: string;
-    endDate: string;
+    class_status: LessonStatus;
+    payment_status: PaymentStatus;
+    start_date: string;
+    end_date: string;
     duration: number;
   }) => {
-    const response = await api.post("/calendars", calendar);
-    return response.data;
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      // Convert snake_case to camelCase for backend compatibility
+      const eventData = {
+        ...data,
+        startDate: data.start_date,
+        endDate: data.end_date,
+      } as Record<string, unknown>;
+      delete eventData.start_date;
+      delete eventData.end_date;
+      const response = await fetch("/api/proxy/calendar/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          events: {
+            added: [eventData]
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error("Error creating calendar event:", error);
+      throw error;
+    }
   },
 
   updateCalendar: async (
@@ -207,6 +240,54 @@ export const calendarApi = {
   checkAndRemoveReservedLessons: async () => {
     const response = await axios.post('/api/lessons/check-reserved');
     return response.data;
+  },
+
+  getStudentRemainingClasses: async (studentId: number) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const response = await fetch(`/api/proxy/students/${studentId}/remaining-classes`, {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error('Failed to fetch student class balance');
+    return await response.json();
+  },
+
+  async checkAndDeleteReservedClasses() {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const response = await fetch("/api/proxy/calendar/check-reserved", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      return await response.json();
+    } catch (error) {
+      console.error("Error checking reserved classes:", error);
+      throw error;
+    }
+  },
+
+  async updateLessonStatus(lessonId: number, status: string) {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const response = await fetch(`/api/proxy/lessons/${lessonId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (response.status === 204) return null;
+      const text = await response.text();
+      if (!text) return null;
+      return JSON.parse(text);
+    } catch (error) {
+      console.error("Error updating lesson status:", error);
+      throw error;
+    }
   },
 };
 

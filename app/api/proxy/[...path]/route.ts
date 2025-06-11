@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = "https://test-account.amdream.us/api";
+const BACKEND_URL = "http://localhost:8150/api";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {

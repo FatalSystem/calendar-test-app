@@ -111,6 +111,10 @@ export const CalendarProvider: React.FC<{ children: React.ReactNode }> = ({
       const response = await calendarApi.getAllEvents();
       if (response.events?.rows) {
         setEvents(response.events.rows);
+      } else if (Array.isArray(response.events)) {
+        setEvents(response.events);
+      } else {
+        setEvents([]);
       }
     } catch (error) {
       setError(

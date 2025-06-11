@@ -10,13 +10,13 @@ import {
   EventClickArg,
 } from "@fullcalendar/core";
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
-import { Event } from "./types";
 import TeacherSelector from "./TeacherSelector";
 import CalendarStyles from "./CalendarStyles";
 import { calendarApi } from "@/app/api/calendar";
 import EventCreateForm from "./EventCreateForm";
 import "./Calendar.css";
 import { useCalendarContext } from "@/app/store/CalendarContext";
+import LessonStatusModal from "./LessonStatusModal";
 
 // Dynamically import FullCalendar with no SSR
 const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
@@ -175,6 +175,8 @@ export default function Calendar() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<EventInput | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalStart, setCreateModalStart] = useState<Date | null>(null);
+  const [createModalEnd, setCreateModalEnd] = useState<Date | null>(null);
   const [timezone, setTimezone] = useState(
     typeof window !== "undefined"
       ? localStorage.getItem("calendar-tz") || "local"
@@ -199,7 +201,39 @@ export default function Calendar() {
     if (role === "manager" && teachers.length > 0 && !selectedTeacherId) {
       setSelectedTeacherId(String(teachers[0].id));
     }
-  }, [role, teachers, selectedTeacherId]);
+  }, [role, teachers, selectedTeacherId, currentTeacherId]);
+
+  useEffect(() => {
+    if (
+      role === "manager" &&
+      teachers.length > 0 &&
+      selectedTeachers.length === 0
+    ) {
+      console.log("Initializing selectedTeachers for manager:", {
+        teachers,
+        role,
+        currentTeacherId,
+      });
+      setSelectedTeachers(teachers.map((t) => String(t.id)));
+    }
+    // Do not auto-select if already set, so manual selection works
+  }, [
+    role,
+    teachers,
+    selectedTeachers.length,
+    setSelectedTeachers,
+    currentTeacherId,
+  ]);
+
+  useEffect(() => {
+    if (role === "teacher" && currentTeacherId) {
+      console.log("Setting selectedTeachers for teacher:", {
+        currentTeacherId,
+        role,
+      });
+      setSelectedTeachers([currentTeacherId]);
+    }
+  }, [role, currentTeacherId, setSelectedTeachers]);
 
   useEffect(() => {
     const loadPlugins = async () => {
@@ -231,21 +265,61 @@ export default function Calendar() {
   }, [timezone]);
 
   const processedEvents = useMemo(() => {
-    return events
-      .filter((event) => selectedTeachers.includes(String(event.teacher_id)))
+    console.log("Processing events:", {
+      totalEvents: events.length,
+      selectedTeachers,
+      role,
+      currentTeacherId,
+    });
+
+    const filteredEvents = events.filter((event) => {
+      // Якщо вибрано тільки одного вчителя, показуємо тільки його події
+      if (selectedTeachers.length === 1) {
+        const isSelected = selectedTeachers[0] === event.resourceId;
+        console.log("Single teacher filtering:", {
+          eventId: event.id,
+          resourceId: event.resourceId,
+          selectedTeacher: selectedTeachers[0],
+          isSelected,
+        });
+        return isSelected;
+      }
+
+      // Якщо вибрано кілька вчителів, показуємо події всіх вибраних
+      const isSelected = selectedTeachers.includes(event.resourceId);
+      console.log("Multiple teachers filtering:", {
+        eventId: event.id,
+        resourceId: event.resourceId,
+        isSelected,
+        selectedTeachers,
+      });
+      return isSelected;
+    });
+
+    console.log("Filtered events:", {
+      totalFiltered: filteredEvents.length,
+      filteredEvents,
+    });
+
+    return filteredEvents
       .map((event) => {
         const startDate = new Date(event.startDate);
         const endDate = new Date(event.endDate);
-        const teacher = teachers.find((t) => t.id === event.teacher_id);
-        const teacherColor = getTeacherColor(event.teacher_id ?? 0);
+        const teacher = teachers.find(
+          (t) => t.id === parseInt(event.resourceId)
+        );
+        const teacherColor = getTeacherColor(parseInt(event.resourceId));
         const teacherName = teacher
           ? `${teacher.first_name} ${teacher.last_name}`
           : "";
-        // Add RSVR if reserved
-        const studentName =
-          event.payment_status === "reserved"
-            ? `RSVR ${event.student_name_text || "No Student"}`
-            : event.student_name_text || "No Student";
+        // Add RSVR if reserved, Trial if class_type is trial
+        let studentName = event.student_name_text || "No Student";
+        if (event.class_type === "trial") {
+          studentName = `Trial ${studentName}`;
+        }
+        if (event.payment_status === "reserved") {
+          studentName = `RSVR ${studentName}`;
+        }
         const calendarEvent = {
           id: event.id.toString(),
           title: event.name || "Event",
@@ -272,7 +346,14 @@ export default function Calendar() {
         return calendarEvent;
       })
       .filter((event): event is NonNullable<typeof event> => event !== null);
-  }, [events, selectedTeachers, teachers, getTeacherColor]);
+  }, [
+    events,
+    selectedTeachers,
+    teachers,
+    getTeacherColor,
+    currentTeacherId,
+    role,
+  ]);
 
   useEffect(() => {
     const adjustDayColumnWidths = () => {
@@ -340,92 +421,11 @@ export default function Calendar() {
     };
   }, [processedEvents]);
 
-  const handleSelect = useCallback(
-    async (selectInfo: DateSelectArg) => {
-      const selectedTeacher = teachers.find(
-        (t) => t.id === parseInt(selectedTeachers[0] || "0")
-      );
-      const teacherId = selectedTeacher?.id || teachers[0]?.id || 0;
-      // Check for overlapping events for this teacher
-      const overlap = events.some((event) => {
-        const eventTeacherId = event.resourceId || event.teacher_id?.toString();
-        if (String(eventTeacherId) !== String(teacherId)) return false;
-        const eventStart = new Date(event.startDate).getTime();
-        const eventEnd = new Date(event.endDate).getTime();
-        const selectStart = selectInfo.start.getTime();
-        const selectEnd = selectInfo.end.getTime();
-        return selectStart < eventEnd && selectEnd > eventStart;
-      });
-      if (overlap) {
-        alert(
-          "There is already a scheduled event for this teacher at the selected time."
-        );
-        return;
-      }
-      const title = prompt("Please enter a title for your event:");
-      if (title) {
-        // Create optimistic event object
-        const optimisticEvent: Event = {
-          id: Date.now(), // Temporary ID
-          startDate: selectInfo.start.toISOString(),
-          endDate: selectInfo.end.toISOString(),
-          name: title,
-          resourceId: String(teacherId),
-          teacherColor: "#3174ad",
-          eventColor: "#3174ad",
-          class_type: "regular",
-          class_status: "scheduled",
-          payment_status: "reserved",
-          duration: 50,
-          isUnavailable: false,
-          student_name: "5",
-          student_name_text: "Student Name",
-          calendar_id: 0,
-          student_id: 5,
-        };
-
-        // Optimistically update the UI
-        updateEvent(Date.now(), optimisticEvent);
-
-        try {
-          // Format dates in UTC to match backend's dayjs format
-          const startDate = new Date(
-            selectInfo.start.getTime() -
-              selectInfo.start.getTimezoneOffset() * 60000
-          ).toISOString();
-          const endDate = new Date(
-            selectInfo.end.getTime() -
-              selectInfo.end.getTimezoneOffset() * 60000
-          ).toISOString();
-
-          const response = await calendarApi.createLesson({
-            startDate,
-            endDate,
-            name: title,
-            teacher_id: teacherId,
-            student_id: 5, // Default student ID
-            class_type: "regular",
-            class_status: "scheduled",
-            payment_status: "reserved",
-            student_name_text: "Student Name",
-            calendar_id: 0,
-          });
-
-          // Update the event with the real ID from the backend
-          updateEvent(Date.now(), {
-            ...optimisticEvent,
-            id: response.id,
-          });
-        } catch (error) {
-          console.error("Failed to create event:", error);
-          // Remove the optimistic event
-          updateEvent(Date.now(), null);
-          alert("Failed to create event. Please try again.");
-        }
-      }
-    },
-    [teachers, selectedTeachers, events, updateEvent]
-  );
+  const handleSelect = useCallback((selectInfo: DateSelectArg) => {
+    setCreateModalStart(selectInfo.start);
+    setCreateModalEnd(selectInfo.end);
+    setCreateModalOpen(true);
+  }, []);
 
   const handleEventDrop = useCallback(
     async (dropInfo: EventDropArg) => {
@@ -528,6 +528,80 @@ export default function Calendar() {
     setModalOpen(true);
   }, []);
 
+  // 1. Log events fetched from backend
+  useEffect(() => {
+    if (events) {
+      console.log("Fetched events from backend:", {
+        totalEvents: events.length,
+        events: events,
+        firstEvent: events[0],
+        lastEvent: events[events.length - 1],
+      });
+    }
+  }, [events]);
+
+  // 2. Log selected teacherId
+  useEffect(() => {
+    console.log("Selected teacherId:", {
+      selectedTeacherId,
+      role,
+      currentTeacherId,
+    });
+  }, [selectedTeacherId, role, currentTeacherId]);
+
+  // 3. Log filtered events shown in calendar
+  useEffect(() => {
+    if (processedEvents) {
+      console.log("Events shown in calendar:", {
+        totalProcessedEvents: processedEvents.length,
+        processedEvents: processedEvents,
+        selectedTeachers: selectedTeachers,
+        teachers: teachers,
+      });
+    }
+  }, [processedEvents, selectedTeachers, teachers]);
+
+  useEffect(() => {
+    console.log("Calendar state:", {
+      selectedTeachers,
+      teachers,
+      events,
+      processedEvents,
+    });
+  }, [selectedTeachers, teachers, events, processedEvents]);
+
+  // Add periodic check for reserved classes
+  useEffect(() => {
+    const checkReservedClasses = async () => {
+      try {
+        await calendarApi.checkAndDeleteReservedClasses();
+        // Refresh events after checking
+        fetchEvents();
+      } catch (error) {
+        console.error("Error checking reserved classes:", error);
+      }
+    };
+
+    // Check immediately when component mounts
+    checkReservedClasses();
+
+    // Then check every 5 minutes
+    const interval = setInterval(checkReservedClasses, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [fetchEvents, currentTeacherId]);
+
+  const handleStatusUpdate = () => {
+    fetchEvents();
+  };
+
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+
+  const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const [statusEditValue, setStatusEditValue] = useState<string>("");
+  const [statusEditLoading, setStatusEditLoading] = useState(false);
+  const [statusEditError, setStatusEditError] = useState<string | null>(null);
+
   if (plugins.length === 0) {
     return <div>Loading calendar plugins...</div>;
   }
@@ -595,6 +669,7 @@ export default function Calendar() {
               }))}
               selectedTeachers={selectedTeachers}
               onTeacherSelect={setSelectedTeachers}
+              singleSelect={role === "teacher"}
             />
           </div>
           <div className="calendar-content">
@@ -693,33 +768,158 @@ export default function Calendar() {
       <CalendarStyles />
       {modalOpen && selectedEvent && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content event-details-modal">
+            <button
+              className="modal-close-x"
+              onClick={() => {
+                setModalOpen(false);
+                setIsEditingStatus(false);
+                setStatusEditError(null);
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
             <h2 className="modal-title">Event Details</h2>
-            <div className="modal-field">
-              <b>Title:</b> {selectedEvent.title}
-            </div>
-            <div className="modal-field">
-              <b>Start:</b> {selectedEvent.start?.toLocaleString()}
-            </div>
-            <div className="modal-field">
-              <b>End:</b> {selectedEvent.end?.toLocaleString()}
-            </div>
-            <div className="modal-field">
-              <b>Teacher:</b> {selectedEvent.extendedProps?.teacherName}
-            </div>
-            <div className="modal-field">
-              <b>Student:</b> {selectedEvent.extendedProps?.studentName}
-            </div>
-            <div className="modal-actions">
-              <button
-                className="modal-close-button"
-                onClick={() => setModalOpen(false)}
-              >
-                Close
-              </button>
-            </div>
+            {!isEditingStatus ? (
+              <>
+                <div className="modal-fields-grid">
+                  <div className="modal-field">
+                    <span className="modal-label">Title:</span>
+                    <span className="modal-value">{selectedEvent.title}</span>
+                  </div>
+                  <div className="modal-field">
+                    <span className="modal-label">Start:</span>
+                    <span className="modal-value">
+                      {selectedEvent.start?.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="modal-field">
+                    <span className="modal-label">End:</span>
+                    <span className="modal-value">
+                      {selectedEvent.end?.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="modal-field">
+                    <span className="modal-label">Teacher:</span>
+                    <span className="modal-value">
+                      {selectedEvent.extendedProps?.teacherName}
+                    </span>
+                  </div>
+                  <div className="modal-field">
+                    <span className="modal-label">Student:</span>
+                    <span className="modal-value">
+                      {selectedEvent.extendedProps?.studentName}
+                    </span>
+                  </div>
+                  <div className="modal-field">
+                    <span className="modal-label">Status:</span>
+                    <span className="modal-value">
+                      {selectedEvent.extendedProps?.classStatus || "scheduled"}
+                    </span>
+                  </div>
+                </div>
+                <div className="modal-actions">
+                  <button
+                    className="modal-status-button"
+                    onClick={() => {
+                      setIsEditingStatus(true);
+                      setStatusEditValue(
+                        selectedEvent.extendedProps?.classStatus || "scheduled"
+                      );
+                    }}
+                  >
+                    Change Status
+                  </button>
+                  <button
+                    className="modal-close-button"
+                    onClick={() => setModalOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="modal-fields-grid">
+                  <div className="modal-field">
+                    <span className="modal-label">Status:</span>
+                    <select
+                      className="modal-status-select"
+                      value={statusEditValue}
+                      onChange={(e) => setStatusEditValue(e.target.value)}
+                      disabled={statusEditLoading}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        fontSize: 16,
+                      }}
+                    >
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                      <option value="no_show">Student No Show</option>
+                    </select>
+                  </div>
+                  {statusEditError && (
+                    <div
+                      className="error-message"
+                      style={{ color: "#dc3545", marginTop: 8 }}
+                    >
+                      {statusEditError}
+                    </div>
+                  )}
+                </div>
+                <div className="modal-actions">
+                  <button
+                    className="modal-status-button"
+                    disabled={statusEditLoading}
+                    onClick={async () => {
+                      setStatusEditLoading(true);
+                      setStatusEditError(null);
+                      try {
+                        await calendarApi.updateLessonStatus(
+                          Number(selectedEvent.id),
+                          statusEditValue
+                        );
+                        setIsEditingStatus(false);
+                        setModalOpen(false);
+                        setStatusEditLoading(false);
+                        fetchEvents();
+                      } catch {
+                        setStatusEditError(
+                          "Failed to update status. Please try again."
+                        );
+                        setStatusEditLoading(false);
+                      }
+                    }}
+                  >
+                    {statusEditLoading ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    className="modal-close-button"
+                    disabled={statusEditLoading}
+                    onClick={() => {
+                      setIsEditingStatus(false);
+                      setStatusEditError(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
+      )}
+      {statusModalOpen && (
+        <LessonStatusModal
+          isOpen={statusModalOpen}
+          onClose={() => setStatusModalOpen(false)}
+          lessonId={0}
+          currentStatus={"scheduled"}
+          onStatusUpdate={handleStatusUpdate}
+        />
       )}
       {createModalOpen && (
         <div className="modal-overlay">
@@ -728,6 +928,9 @@ export default function Calendar() {
             <EventCreateForm
               teachers={teachers}
               onClose={() => setCreateModalOpen(false)}
+              timezone={timezone}
+              start={createModalStart}
+              end={createModalEnd}
             />
           </div>
         </div>
