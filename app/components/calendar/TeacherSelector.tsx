@@ -34,7 +34,9 @@ export default function TeacherSelector({
       {!singleSelect && (
         <button
           className={`teacher-button all-teachers-btn${
-            selectedTeachers.length === teachers.length ? " selected" : ""
+            selectedTeachers.length === teachers.length && teachers.length > 0
+              ? " selected"
+              : ""
           }`}
           onClick={() => {
             if (selectedTeachers.length === teachers.length) {
@@ -45,21 +47,29 @@ export default function TeacherSelector({
           }}
           style={{
             backgroundColor:
-              selectedTeachers.length === teachers.length ? "#2563eb" : "white",
+              selectedTeachers.length === teachers.length && teachers.length > 0
+                ? "#2563eb"
+                : "white",
             color:
-              selectedTeachers.length === teachers.length ? "white" : "inherit",
+              selectedTeachers.length === teachers.length && teachers.length > 0
+                ? "white"
+                : "inherit",
             border:
-              selectedTeachers.length === teachers.length
+              selectedTeachers.length === teachers.length && teachers.length > 0
                 ? `2px solid #2563eb`
                 : "2px solid transparent",
             fontWeight: 600,
+            marginBottom: 8,
+            cursor: teachers.length === 0 ? "not-allowed" : "pointer",
+            opacity: teachers.length === 0 ? 0.5 : 1,
           }}
+          disabled={teachers.length === 0}
         >
           <div
             className="teacher-color"
             style={{ backgroundColor: "#2563eb" }}
           />
-          All Teachers
+          Select All
         </button>
       )}
       {teachers.map((teacher) => (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = "https://test-account.amdream.us/api";
+const BACKEND_URL = "http://localhost:8150/api";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -218,6 +218,57 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.log("Proxy DELETE Error:", {
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return NextResponse.json(
+      {
+        error: "Failed to fetch from backend",
+        details: error instanceof Error ? error : "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest): Promise<NextResponse> {
+  try {
+    const path = request.nextUrl.pathname.split("/api/proxy/")[1];
+    const url = `${BACKEND_URL}/${path}`;
+    const body = await request.json();
+
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        Authorization: request.headers.get("Authorization") || "",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    // Check if response is JSON
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const text = await response.text();
+      console.log("Non-JSON response:", {
+        url,
+        status: response.status,
+        contentType,
+        body: text.substring(0, 500),
+      });
+      return NextResponse.json(
+        {
+          error: "Invalid response from backend",
+          details: "Expected JSON response but got " + contentType,
+        },
+        { status: 500 }
+      );
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.log("Proxy PATCH Error:", {
       error: error instanceof Error ? error.message : "Unknown error",
       stack: error instanceof Error ? error.stack : undefined,
     });

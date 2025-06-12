@@ -6,7 +6,7 @@ interface LessonStatusModalProps {
   onClose: () => void;
   lessonId: number;
   currentStatus: string;
-  onStatusUpdate: () => void;
+  onStatusUpdate: (id: number, status: string) => void;
 }
 
 export default function LessonStatusModal({
@@ -27,7 +27,7 @@ export default function LessonStatusModal({
 
     try {
       await calendarApi.updateLessonStatus(lessonId, status);
-      onStatusUpdate();
+      onStatusUpdate(lessonId, status);
       onClose();
     } catch {
       setError("Failed to update lesson status");

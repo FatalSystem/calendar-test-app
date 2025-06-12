@@ -58,10 +58,12 @@ function getUserRole() {
 
 const lessonStatusOptions: { value: LessonStatus; label: string }[] = [
   { value: "scheduled", label: "Scheduled" },
-  { value: "completed", label: "Completed" },
+  { value: "completed", label: "Given" },
   { value: "cancelled", label: "Cancelled" },
   { value: "student_no_show", label: "Student No Show" },
-  { value: "teacher_no_show", label: "Teacher No Show" },
+  ...(getUserRole() === "manager"
+    ? [{ value: "teacher_no_show" as LessonStatus, label: "No Show Teacher" }]
+    : []),
 ];
 
 // Mock students and groups
@@ -126,6 +128,8 @@ export default function EventCreateForm({
   );
 
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentSearch, setStudentSearch] = useState("");
+
   useEffect(() => {
     async function fetchStudents() {
       try {
@@ -256,18 +260,37 @@ export default function EventCreateForm({
       return;
     }
 
-    if (classType === "group") {
-      if (!selectedGroupId) {
-        setError("Please select a group");
+    // If unavailable, skip student/group/payment logic
+    if (classType === "unavailable") {
+      try {
+        const startUTC =
+          DateTime.fromISO(start, { zone: timezone }).toUTC().toISO() || "";
+        const endUTC =
+          DateTime.fromISO(end, { zone: timezone }).toUTC().toISO() || "";
+        const eventData = {
+          class_type: classType,
+          student_id: 0,
+          teacher_id: parseInt(String(teacherId)),
+          class_status: "scheduled" as LessonStatus,
+          payment_status: "reserved" as PaymentStatus,
+          start_date: startUTC,
+          end_date: endUTC,
+          duration: Number(duration),
+          isUnavailable: true,
+        };
+        await calendarApi.createCalendar(eventData);
+        onClose();
+        if (onSuccess) onSuccess();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to create unavailable block"
+        );
+      } finally {
         setLoading(false);
-        return;
       }
-    } else {
-      if (!studentId) {
-        setError("Please select a student");
-        setLoading(false);
-        return;
-      }
+      return;
     }
 
     // Fetch student class balance before creating event
@@ -380,6 +403,7 @@ export default function EventCreateForm({
               type="button"
               className="dropdown-button"
               onClick={() => setDropdownOpen((v) => !v)}
+              style={{ color: "#222" }}
             >
               <span className="flex items-center gap-2">
                 <span
@@ -419,6 +443,7 @@ export default function EventCreateForm({
                       setTeacherId(t.id);
                       setDropdownOpen(false);
                     }}
+                    style={{ color: "#222" }}
                   >
                     <span
                       className="inline-block w-4 h-4 rounded-full border"
@@ -442,6 +467,7 @@ export default function EventCreateForm({
               type="button"
               className="dropdown-button"
               onClick={() => setClassTypeDropdownOpen((v) => !v)}
+              style={{ color: "#222" }}
             >
               <span>{selectedClassType?.label || "Select type"}</span>
               <svg
@@ -473,6 +499,7 @@ export default function EventCreateForm({
                       setClassType(type.value);
                       setClassTypeDropdownOpen(false);
                     }}
+                    style={{ color: "#222" }}
                   >
                     <div>{type.label}</div>
                   </button>
@@ -481,58 +508,63 @@ export default function EventCreateForm({
             )}
           </div>
         </div>
-        <div className="flex-1">
-          <label className="label">Class Status</label>
-          <div className="dropdown" ref={classStatusDropdownRef}>
-            <button
-              type="button"
-              className="dropdown-button"
-              onClick={() => setClassStatusDropdownOpen((v) => !v)}
-            >
-              <span>
-                {lessonStatusOptions.find((opt) => opt.value === classStatus)
-                  ?.label || "Select status"}
-              </span>
-              <svg
-                className={`w-4 h-4 ml-2 transition-transform ${
-                  classStatusDropdownOpen ? "rotate-180" : ""
-                }`}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
+        {/* Hide class status if unavailable */}
+        {classType !== "unavailable" && (
+          <div className="flex-1">
+            <label className="label">Class Status</label>
+            <div className="dropdown" ref={classStatusDropdownRef}>
+              <button
+                type="button"
+                className="dropdown-button"
+                onClick={() => setClassStatusDropdownOpen((v) => !v)}
+                style={{ color: "#222" }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
-            {classStatusDropdownOpen && (
-              <div className="dropdown-menu">
-                {lessonStatusOptions.map((type) => (
-                  <button
-                    type="button"
-                    key={type.value}
-                    className={`dropdown-item ${
-                      type.value === classStatus ? "selected" : ""
-                    }`}
-                    onClick={() => {
-                      setClassStatus(type.value);
-                      setClassStatusDropdownOpen(false);
-                    }}
-                  >
-                    {type.label}
-                  </button>
-                ))}
-              </div>
-            )}
+                <span>
+                  {lessonStatusOptions.find((opt) => opt.value === classStatus)
+                    ?.label || "Select status"}
+                </span>
+                <svg
+                  className={`w-4 h-4 ml-2 transition-transform ${
+                    classStatusDropdownOpen ? "rotate-180" : ""
+                  }`}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+              {classStatusDropdownOpen && (
+                <div className="dropdown-menu">
+                  {lessonStatusOptions.map((type) => (
+                    <button
+                      type="button"
+                      key={type.value}
+                      className={`dropdown-item ${
+                        type.value === classStatus ? "selected" : ""
+                      }`}
+                      onClick={() => {
+                        setClassStatus(type.value);
+                        setClassStatusDropdownOpen(false);
+                      }}
+                      style={{ color: "#222" }}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Duration (only for non-trial lessons) */}
+      {/* Duration (only for non-trial lessons, hide for unavailable) */}
       {classType === "trial" ? (
         <div>
           <label className="label">Duration</label>
@@ -543,7 +575,7 @@ export default function EventCreateForm({
             style={{ background: "#f3f4f6", color: "#888" }}
           />
         </div>
-      ) : (
+      ) : classType !== "unavailable" ? (
         <div>
           <label className="label">Duration</label>
           <div className="dropdown" ref={durationDropdownRef}>
@@ -551,6 +583,7 @@ export default function EventCreateForm({
               type="button"
               className="dropdown-button"
               onClick={() => setDurationDropdownOpen((v) => !v)}
+              style={{ color: "#222" }}
             >
               <span>{duration} min</span>
               <svg
@@ -582,6 +615,7 @@ export default function EventCreateForm({
                       setDuration(dur);
                       setDurationDropdownOpen(false);
                     }}
+                    style={{ color: "#222" }}
                   >
                     {dur} minutes
                   </button>
@@ -590,7 +624,7 @@ export default function EventCreateForm({
             )}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Start Time and Student/Group - Side by side */}
       <div className="flex gap-4">
@@ -613,6 +647,7 @@ export default function EventCreateForm({
                   type="button"
                   className="dropdown-button"
                   onClick={() => setGroupDropdownOpen((v) => !v)}
+                  style={{ color: "#222" }}
                 >
                   <span>
                     {selectedGroupId
@@ -652,6 +687,7 @@ export default function EventCreateForm({
                           setSelectedGroupId(group.id.toString());
                           setGroupDropdownOpen(false);
                         }}
+                        style={{ color: "#222" }}
                       >
                         {group.name}
                       </button>
@@ -663,11 +699,19 @@ export default function EventCreateForm({
           ) : (
             <>
               <label className="label">Student</label>
+              <input
+                className="input"
+                placeholder="Search by name or first letter..."
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                style={{ marginBottom: 8 }}
+              />
               <div className="dropdown">
                 <button
                   type="button"
                   className="dropdown-button"
                   onClick={() => setGroupDropdownOpen((v) => !v)}
+                  style={{ color: "#222" }}
                 >
                   <span>{studentName || "Select student"}</span>
                   <svg
@@ -688,24 +732,40 @@ export default function EventCreateForm({
                 </button>
                 {groupDropdownOpen && (
                   <div className="dropdown-menu">
-                    {students.map((student) => (
-                      <button
-                        type="button"
-                        key={student.id}
-                        className={`dropdown-item ${
-                          student.id.toString() === studentId ? "selected" : ""
-                        }`}
-                        onClick={() => {
-                          setStudentId(student.id.toString());
-                          setStudentName(
-                            `${student.first_name} ${student.last_name}`
-                          );
-                          setGroupDropdownOpen(false);
-                        }}
-                      >
-                        {student.first_name} {student.last_name}
-                      </button>
-                    ))}
+                    {students
+                      .filter((student) => {
+                        if (!studentSearch) return true;
+                        const search = studentSearch.toLowerCase();
+                        return (
+                          student.first_name.toLowerCase().startsWith(search) ||
+                          student.last_name.toLowerCase().startsWith(search) ||
+                          `${student.first_name} ${student.last_name}`
+                            .toLowerCase()
+                            .includes(search)
+                        );
+                      })
+                      .sort((a, b) => a.last_name.localeCompare(b.last_name))
+                      .map((student) => (
+                        <button
+                          type="button"
+                          key={student.id}
+                          className={`dropdown-item ${
+                            student.id.toString() === studentId
+                              ? "selected"
+                              : ""
+                          }`}
+                          onClick={() => {
+                            setStudentId(student.id.toString());
+                            setStudentName(
+                              `${student.first_name} ${student.last_name}`
+                            );
+                            setGroupDropdownOpen(false);
+                          }}
+                          style={{ color: "#222" }}
+                        >
+                          {student.first_name} {student.last_name}
+                        </button>
+                      ))}
                   </div>
                 )}
               </div>
@@ -729,6 +789,7 @@ export default function EventCreateForm({
                 setRepeatWeeks(2);
               }
             }}
+            style={{ color: "#222" }}
           >
             <span>
               {repeatMode === "none"
@@ -821,6 +882,14 @@ export default function EventCreateForm({
             }}
           />
           <span style={{ fontSize: "0.95rem" }}>weeks</span>
+        </div>
+      )}
+
+      {/* If unavailable, show info */}
+      {classType === "unavailable" && (
+        <div style={{ margin: "16px 0", color: "#dc2626", fontWeight: 600 }}>
+          This block will mark you as{" "}
+          <span style={{ color: "#b91c1c" }}>NOT AVAILABLE</span> for lessons.
         </div>
       )}
 

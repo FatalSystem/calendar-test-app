@@ -17,6 +17,10 @@ import EventCreateForm from "./EventCreateForm";
 import "./Calendar.css";
 import { useCalendarContext } from "@/app/store/CalendarContext";
 import LessonStatusModal from "./LessonStatusModal";
+import { DateTime } from "luxon";
+import Link from "next/link";
+import { useSidebar } from "@/app/store/SidebarContext";
+import { classesApi } from "@/app/api/classes";
 
 // Dynamically import FullCalendar with no SSR
 const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
@@ -60,6 +64,7 @@ function CustomTimezoneDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const selectedLabel = value === "local" ? "Local Time" : value;
+
   return (
     <div style={{ position: "relative", minWidth: 180 }}>
       <button
@@ -184,6 +189,7 @@ export default function Calendar() {
   );
 
   const role = getUserRole();
+  const { openSidebar } = useSidebar();
   const currentTeacherId = getCurrentTeacherId();
   // For manager: selected teacher state
   const [selectedTeacherId, setSelectedTeacherId] = useState(() => {
@@ -194,6 +200,12 @@ export default function Calendar() {
       return currentTeacherId;
     }
     return "";
+  });
+
+  useEffect(() => {
+    if (localStorage.getItem("token")) {
+      openSidebar();
+    }
   });
 
   // Update selected teacher if teachers list changes (for manager)
@@ -320,6 +332,23 @@ export default function Calendar() {
         if (event.payment_status === "reserved") {
           studentName = `RSVR ${studentName}`;
         }
+        // If this is an unavailable block, render as red with N/A
+        if (event.isUnavailable) {
+          return {
+            id: `unavailable-${event.id}`,
+            title: "Not Available",
+            start: startDate,
+            end: endDate,
+            resourceId: event.resourceId || event.teacher_id?.toString(),
+            extendedProps: {
+              isUnavailableBlock: true,
+              teacherName,
+            },
+            backgroundColor: "#dc2626", // red-600
+            borderColor: "#dc2626",
+          };
+        }
+        // Otherwise, render as a normal lesson/event
         const calendarEvent = {
           id: event.id.toString(),
           title: event.name || "Event",
@@ -517,8 +546,10 @@ export default function Calendar() {
     const eventInput: EventInput = {
       id: clickInfo.event.id,
       title: clickInfo.event.title,
-      start: clickInfo.event.start || undefined,
-      end: clickInfo.event.end || undefined,
+      start: clickInfo.event.start
+        ? new Date(clickInfo.event.start)
+        : undefined,
+      end: clickInfo.event.end ? new Date(clickInfo.event.end) : undefined,
       extendedProps: clickInfo.event.extendedProps,
       backgroundColor: clickInfo.event.backgroundColor,
       borderColor: clickInfo.event.borderColor,
@@ -591,8 +622,22 @@ export default function Calendar() {
     return () => clearInterval(interval);
   }, [fetchEvents, currentTeacherId]);
 
-  const handleStatusUpdate = () => {
-    fetchEvents();
+  const handleStatusUpdate = async (eventId: number, status: string) => {
+    try {
+      const event = events.find((e) => e.id === eventId);
+      if (!event) return;
+
+      await classesApi.handleCalendarStatusUpdate(
+        eventId.toString(),
+        status,
+        event.student_id.toString(),
+        event.resourceId
+      );
+
+      fetchEvents();
+    } catch (error) {
+      console.error("Error updating class status:", error);
+    }
   };
 
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -601,6 +646,17 @@ export default function Calendar() {
   const [statusEditValue, setStatusEditValue] = useState<string>("");
   const [statusEditLoading, setStatusEditLoading] = useState(false);
   const [statusEditError, setStatusEditError] = useState<string | null>(null);
+  const [statusEditDropdownOpen, setStatusEditDropdownOpen] = useState(false);
+
+  const [currentTime, setCurrentTime] = useState(() =>
+    DateTime.now().setZone(timezone)
+  );
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(DateTime.now().setZone(timezone));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timezone]);
 
   if (plugins.length === 0) {
     return <div>Loading calendar plugins...</div>;
@@ -656,6 +712,39 @@ export default function Calendar() {
             Timezone:
           </label>
           <CustomTimezoneDropdown value={timezone} onChange={setTimezone} />
+          <span
+            style={{
+              marginLeft: 12,
+              fontWeight: 600,
+              fontSize: 16,
+              color: "#2563eb",
+              letterSpacing: 1,
+              minWidth: 120,
+              display: "inline-block",
+            }}
+          >
+            {currentTime.toFormat("dd.MM.yyyy, HH:mm:ss")}
+          </span>
+          <Link href="/availability">
+            <button
+              className="button"
+              style={{
+                background: "#2563eb",
+                color: "white",
+                fontWeight: 600,
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontSize: 16,
+                marginLeft: 16,
+                boxShadow: "0 2px 8px rgba(37,99,235,0.08)",
+                border: "none",
+                cursor: "pointer",
+                transition: "background 0.2s",
+              }}
+            >
+              Set Availability
+            </button>
+          </Link>
         </div>
       </div>
       <div className="calendar-wrapper">
@@ -737,18 +826,26 @@ export default function Calendar() {
                     };
                   }
                   const { extendedProps } = eventInfo.event;
+                  // Compute student name with Trial/RSVR prefix
+                  let prefix = "";
+                  if (extendedProps.classType === "trial") prefix += "Trial ";
+                  if (extendedProps.studentName?.startsWith("RSVR "))
+                    prefix += "RSVR ";
+                  let name = extendedProps.studentName || "No Student";
+                  if (name.startsWith("RSVR "))
+                    name = name.replace(/^RSVR /, "");
+                  if (name.startsWith("Trial "))
+                    name = name.replace(/^Trial /, "");
+                  const studentDisplay = `${prefix}${name}`.trim();
                   return {
                     html: `
-                  <div className="fc-event-main-content">
-                    <div className="fc-event-title-container">
-                      <div className="fc-event-title fc-sticky">
-                        <div className="fc-event-header">
-                          ${eventInfo.event.title}
-                        </div>
-                        <div className="fc-event-details">
-                          <div className="fc-event-teacher">${extendedProps.teacherName}</div>
-                          <div className="fc-event-student">${extendedProps.studentName}</div>
-                          <div className="fc-event-time">${extendedProps.timeRange}</div>
+                  <div class="fc-event-main-content">
+                    <div class="fc-event-title-container">
+                      <div class="fc-event-title fc-sticky">
+                        <div class="fc-event-details">
+                          <div class="fc-event-teacher">${extendedProps.teacherName}</div>
+                          <div class="fc-event-student">${studentDisplay}</div>
+                          <div class="fc-event-time">${extendedProps.timeRange}</div>
                         </div>
                       </div>
                     </div>
@@ -776,7 +873,19 @@ export default function Calendar() {
                 setIsEditingStatus(false);
                 setStatusEditError(null);
               }}
-              aria-label="Close"
+              style={{
+                position: "absolute",
+                top: 12,
+                right: 16,
+                fontSize: "2rem",
+                background: "none",
+                border: "none",
+                color: "#222",
+                cursor: "pointer",
+                padding: 8,
+                zIndex: 10,
+                transition: "color 0.2s",
+              }}
             >
               ×
             </button>
@@ -785,19 +894,31 @@ export default function Calendar() {
               <>
                 <div className="modal-fields-grid">
                   <div className="modal-field">
-                    <span className="modal-label">Title:</span>
-                    <span className="modal-value">{selectedEvent.title}</span>
-                  </div>
-                  <div className="modal-field">
                     <span className="modal-label">Start:</span>
                     <span className="modal-value">
-                      {selectedEvent.start?.toLocaleString()}
+                      {selectedEvent.start &&
+                        selectedEvent.start.toLocaleString("uk-UA", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        })}
                     </span>
                   </div>
                   <div className="modal-field">
                     <span className="modal-label">End:</span>
                     <span className="modal-value">
-                      {selectedEvent.end?.toLocaleString()}
+                      {selectedEvent.end &&
+                        selectedEvent.end.toLocaleString("uk-UA", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        })}
                     </span>
                   </div>
                   <div className="modal-field">
@@ -809,7 +930,25 @@ export default function Calendar() {
                   <div className="modal-field">
                     <span className="modal-label">Student:</span>
                     <span className="modal-value">
-                      {selectedEvent.extendedProps?.studentName}
+                      {(() => {
+                        let prefix = "";
+                        if (selectedEvent.extendedProps?.classType === "trial")
+                          prefix += "Trial ";
+                        if (
+                          selectedEvent.extendedProps?.studentName?.startsWith(
+                            "RSVR "
+                          )
+                        )
+                          prefix += "RSVR ";
+                        let name =
+                          selectedEvent.extendedProps?.studentName ||
+                          "No Student";
+                        if (name.startsWith("RSVR "))
+                          name = name.replace(/^RSVR /, "");
+                        if (name.startsWith("Trial "))
+                          name = name.replace(/^Trial /, "");
+                        return `${prefix}${name}`.trim();
+                      })()}
                     </span>
                   </div>
                   <div className="modal-field">
@@ -844,22 +983,235 @@ export default function Calendar() {
                 <div className="modal-fields-grid">
                   <div className="modal-field">
                     <span className="modal-label">Status:</span>
-                    <select
-                      className="modal-status-select"
-                      value={statusEditValue}
-                      onChange={(e) => setStatusEditValue(e.target.value)}
-                      disabled={statusEditLoading}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        fontSize: 16,
-                      }}
+                    <div
+                      className="dropdown"
+                      style={{ minWidth: 180, position: "relative" }}
                     >
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                      <option value="no_show">Student No Show</option>
-                    </select>
+                      <button
+                        type="button"
+                        className="dropdown-button"
+                        onClick={() => {
+                          setStatusEditLoading(false);
+                          setStatusEditError(null);
+                          setStatusEditDropdownOpen((v) => !v);
+                        }}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          fontSize: 16,
+                          width: "100%",
+                          textAlign: "left",
+                          background: "white",
+                          color: "#374151",
+                          fontWeight: 500,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                        disabled={statusEditLoading}
+                      >
+                        <span>
+                          {(() => {
+                            switch (statusEditValue) {
+                              case "Given":
+                                return "Completed";
+                              case "No show student":
+                                return "Student No Show";
+                              case "No show teacher":
+                                return "Teacher No Show";
+                              case "Cancelled":
+                                return "Cancelled";
+                              case "scheduled":
+                                return "Scheduled";
+                              default:
+                                return statusEditValue;
+                            }
+                          })()}
+                        </span>
+                        <svg
+                          style={{ marginLeft: 8, width: 16, height: 16 }}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </button>
+                      {statusEditDropdownOpen && (
+                        <div
+                          className="dropdown-menu"
+                          style={{
+                            position: "absolute",
+                            zIndex: 20,
+                            top: "110%",
+                            left: 0,
+                            width: "100%",
+                            background: "white",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: 8,
+                            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="dropdown-item"
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "10px 16px",
+                              background:
+                                statusEditValue === "Given"
+                                  ? "#dbeafe"
+                                  : "transparent",
+                              color:
+                                statusEditValue === "Given"
+                                  ? "#1d4ed8"
+                                  : "#374151",
+                              fontWeight:
+                                statusEditValue === "Given" ? 600 : 400,
+                              border: "none",
+                              borderRadius: 4,
+                              cursor: "pointer",
+                              fontSize: 14,
+                            }}
+                            onClick={() => {
+                              setStatusEditValue("Given");
+                              setStatusEditDropdownOpen(false);
+                            }}
+                          >
+                            Completed
+                          </button>
+                          <button
+                            type="button"
+                            className="dropdown-item"
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "10px 16px",
+                              background:
+                                statusEditValue === "No show student"
+                                  ? "#dbeafe"
+                                  : "transparent",
+                              color:
+                                statusEditValue === "No show student"
+                                  ? "#1d4ed8"
+                                  : "#374151",
+                              fontWeight:
+                                statusEditValue === "No show student"
+                                  ? 600
+                                  : 400,
+                              border: "none",
+                              borderRadius: 4,
+                              cursor: "pointer",
+                              fontSize: 14,
+                            }}
+                            onClick={() => {
+                              setStatusEditValue("No show student");
+                              setStatusEditDropdownOpen(false);
+                            }}
+                          >
+                            Student No Show
+                          </button>
+                          {role === "manager" && (
+                            <button
+                              type="button"
+                              className="dropdown-item"
+                              style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "10px 16px",
+                                background:
+                                  statusEditValue === "No show teacher"
+                                    ? "#dbeafe"
+                                    : "transparent",
+                                color:
+                                  statusEditValue === "No show teacher"
+                                    ? "#1d4ed8"
+                                    : "#374151",
+                                fontWeight:
+                                  statusEditValue === "No show teacher"
+                                    ? 600
+                                    : 400,
+                                border: "none",
+                                borderRadius: 4,
+                                cursor: "pointer",
+                                fontSize: 14,
+                              }}
+                              onClick={() => {
+                                setStatusEditValue("No show teacher");
+                                setStatusEditDropdownOpen(false);
+                              }}
+                            >
+                              Teacher No Show
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="dropdown-item"
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "10px 16px",
+                              background:
+                                statusEditValue === "Cancelled"
+                                  ? "#dbeafe"
+                                  : "transparent",
+                              color:
+                                statusEditValue === "Cancelled"
+                                  ? "#1d4ed8"
+                                  : "#374151",
+                              fontWeight:
+                                statusEditValue === "Cancelled" ? 600 : 400,
+                              border: "none",
+                              borderRadius: 4,
+                              cursor: "pointer",
+                              fontSize: 14,
+                            }}
+                            onClick={() => {
+                              setStatusEditValue("Cancelled");
+                              setStatusEditDropdownOpen(false);
+                            }}
+                          >
+                            Cancelled
+                          </button>
+                          <button
+                            type="button"
+                            className="dropdown-item"
+                            style={{
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "10px 16px",
+                              background:
+                                statusEditValue === "scheduled"
+                                  ? "#dbeafe"
+                                  : "transparent",
+                              color:
+                                statusEditValue === "scheduled"
+                                  ? "#1d4ed8"
+                                  : "#374151",
+                              fontWeight:
+                                statusEditValue === "scheduled" ? 600 : 400,
+                              border: "none",
+                              borderRadius: 4,
+                              cursor: "pointer",
+                              fontSize: 14,
+                            }}
+                            onClick={() => {
+                              setStatusEditValue("scheduled");
+                              setStatusEditDropdownOpen(false);
+                            }}
+                          >
+                            Scheduled
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {statusEditError && (
                     <div
@@ -878,7 +1230,7 @@ export default function Calendar() {
                       setStatusEditLoading(true);
                       setStatusEditError(null);
                       try {
-                        await calendarApi.updateLessonStatus(
+                        await handleStatusUpdate(
                           Number(selectedEvent.id),
                           statusEditValue
                         );

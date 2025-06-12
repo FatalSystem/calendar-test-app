@@ -289,6 +289,29 @@ export const calendarApi = {
       throw error;
     }
   },
+
+  async updateEventStatus(eventId: number, status: string) {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const res = await fetch(`/api/proxy/calendar/events/${eventId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ class_status: status }),
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Failed to update event status");
+    return await res.json();
+  },
+
+  getAvailability: async () => {
+    const res = await fetch("/api/proxy/availability", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch availability");
+    return res.json();
+  },
 };
 
 // Helper function to convert backend lesson to frontend lesson format

@@ -1,74 +1,32 @@
-body .container.availability {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 20px;
-  background-color: #fff;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.heading {
-  font-size: 24px;
-  margin-bottom: 20px;
-}
-
-.form-group {
-  width: 100%;
-  margin-bottom: 15px;
-  border: 1px solid #e5e7eb;
-  padding: 10px;
-}
-
-label {
-  display: block;
-  margin-bottom: 5px;
-}
-
-input,
-select,
-button {
-  width: 100%;
-  padding: 8px;
-  margin-bottom: 10px;
-  border: 1px solid #e5e7eb;
-}
-
-button {
-  background-color: #3b82f6;
-  color: white;
-  border: none;
-  cursor: pointer;
-  border-radius: 10px;
-}
-
-button:hover {
-  background-color: #255a8f;
-}
-
-.availability-page-container {
+.teachers-page-container {
   padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
   background: #fff;
 }
 
-.availability-header {
+/* Header styles */
+.teachers-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
 }
 
-.availability-title {
+.teachers-title {
   font-size: 24px;
   font-weight: 600;
   color: #1a1a1a;
 }
 
-.add-button {
+.add-teacher-button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -83,11 +41,12 @@ button:hover {
   transition: background 0.2s;
 }
 
-.add-button:hover {
+.add-teacher-button:hover {
   background: #0052cc;
 }
 
-.availability-table {
+/* Table styles */
+.teachers-table {
   width: 100%;
   border-collapse: collapse;
   background: #fff;
@@ -96,7 +55,7 @@ button:hover {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.availability-table th {
+.teachers-table th {
   background: #f5f5f5;
   padding: 12px 16px;
   text-align: left;
@@ -106,26 +65,28 @@ button:hover {
   border-bottom: 1px solid #eee;
 }
 
-.availability-table td {
+.teachers-table td {
   padding: 12px 16px;
   color: #333;
   font-size: 14px;
   border-bottom: 1px solid #eee;
 }
 
-.availability-table tr:last-child td {
+.teachers-table tr:last-child td {
   border-bottom: none;
 }
 
-.availability-table tr:hover td {
+.teachers-table tr:hover td {
   background: #fafafa;
 }
 
-.actions {
+/* Action buttons */
+.action-buttons {
   display: flex;
   gap: 8px;
 }
 
+.edit-button,
 .delete-button {
   width: 28px;
   height: 28px;
@@ -136,6 +97,18 @@ button:hover {
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.2s;
+}
+
+.edit-button {
+  background: #e6f0ff;
+  color: #0066ff;
+}
+
+.edit-button:hover {
+  background: #cce0ff;
+}
+
+.delete-button {
   background: #ffe6e6;
   color: #ff3333;
 }
@@ -144,6 +117,27 @@ button:hover {
   background: #ffcccc;
 }
 
+/* Rating stars */
+.rating-stars {
+  display: flex;
+  gap: 2px;
+}
+
+.star-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: #ddd;
+  transition: color 0.2s;
+}
+
+.star-button:hover,
+.star-button.active {
+  color: #ffb800;
+}
+
+/* Modal styles */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -163,7 +157,7 @@ button:hover {
   position: relative;
 }
 
-.close-button {
+.modal-close-button {
   position: absolute;
   top: 16px;
   right: 16px;
@@ -180,7 +174,7 @@ button:hover {
   transition: background 0.2s;
 }
 
-.close-button:hover {
+.modal-close-button:hover {
   background: #f5f5f5;
   color: #666;
 }
@@ -192,7 +186,7 @@ button:hover {
   margin-bottom: 20px;
 }
 
-.form {
+.modal-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -204,14 +198,14 @@ button:hover {
   gap: 6px;
 }
 
-.label {
+.form-group label {
   font-size: 13px;
   font-weight: 500;
   color: #666;
 }
 
-.input,
-.select {
+.form-group input,
+.form-group select {
   padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 6px;
@@ -220,14 +214,14 @@ button:hover {
   transition: border-color 0.2s;
 }
 
-.input:focus,
-.select:focus {
+.form-group input:focus,
+.form-group select:focus {
   outline: none;
   border-color: #0066ff;
 }
 
-.input:hover,
-.select:hover {
+.form-group input:hover,
+.form-group select:hover {
   border-color: #999;
 }
 
@@ -238,7 +232,7 @@ button:hover {
   margin-top: 24px;
 }
 
-.button {
+.modal-button {
   padding: 8px 16px;
   border-radius: 6px;
   font-size: 14px;
@@ -247,50 +241,45 @@ button:hover {
   transition: background 0.2s;
 }
 
-.primary-button {
+.modal-button.primary {
   background: #0066ff;
   color: #fff;
   border: none;
 }
 
-.primary-button:hover {
+.modal-button.primary:hover {
   background: #0052cc;
 }
 
-.secondary-button {
+.modal-button.secondary {
   background: #f5f5f5;
   color: #666;
   border: none;
 }
 
-.secondary-button:hover {
+.modal-button.secondary:hover {
   background: #eee;
 }
 
-.form-error {
-  color: #dc2626;
-  font-size: 14px;
-  margin-top: 8px;
-}
-
+/* Responsive styles */
 @media (max-width: 768px) {
-  .availability-page-container {
+  .teachers-page-container {
     padding: 16px;
   }
 
-  .availability-header {
+  .teachers-header {
     flex-direction: column;
     gap: 16px;
     align-items: stretch;
   }
 
-  .availability-table {
+  .teachers-table {
     display: block;
     overflow-x: auto;
   }
 
-  .availability-table th,
-  .availability-table td {
+  .teachers-table th,
+  .teachers-table td {
     padding: 10px;
     white-space: nowrap;
   }
@@ -304,7 +293,7 @@ button:hover {
     flex-direction: column;
   }
 
-  .button {
+  .modal-button {
     width: 100%;
   }
-}
+} 
