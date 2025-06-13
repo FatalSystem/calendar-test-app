@@ -176,6 +176,7 @@ export const calendarApi = {
         startDate: data.start_date,
         endDate: data.end_date,
       } as Record<string, unknown>;
+      console.log("eventData",  );
       delete eventData.start_date;
       delete eventData.end_date;
       const response = await fetch("/api/proxy/calendar/events", {
@@ -256,7 +257,7 @@ export const calendarApi = {
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const response = await fetch("/api/proxy/calendar/check-reserved", {
-        method: "POST",
+        method: "GET",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),

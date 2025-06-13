@@ -32,67 +32,79 @@ interface CalendarEvent {
   time?: string;
   class_type?: string;
   type?: string;
+  teacher_id?: string;
+  student_id?: string;
+  teacher_name?: string;
+  teacherId?: string;
+  studentId?: string;
+  teacherName?: string;
+  studentName?: string;
+  resourceId?: string;
+  student_name_text?: string;
 }
 
 function CustomDropdown({
-  options,
-  value,
-  onChange,
-  placeholder,
-}: {
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((o) => o.value === value);
-  return (
-    <div className="custom-dropdown">
-      <div
-        className="custom-dropdown-btn"
-        tabIndex={0}
-        onClick={() => setOpen((v) => !v)}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
-      >
-        <span>{selected ? selected.label : placeholder || "Select"}</span>
-        <svg
-          width="18"
-          height="18"
-          style={{ marginLeft: 8, opacity: 0.7 }}
-          viewBox="0 0 24 24"
+    label,
+    options,
+    value,
+    onChange,
+    placeholder,
+  }: {
+    label: string;
+    options: { value: string; label: string }[];
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+  }) {
+    const [open, setOpen] = useState(false);
+    const selected = options.find((o) => o.value === value);
+    return (
+      <div className="custom-dropdown">
+        {label && <label className="dropdown-label">{label}</label>}
+        <div
+          className="custom-dropdown-btn"
+          tabIndex={0}
+          onClick={() => setOpen((v) => !v)}
+          onBlur={() => setTimeout(() => setOpen(false), 120)}
         >
-          <path
-            d="M6 9l6 6 6-6"
-            stroke="#2563eb"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
-      {open && (
-        <div className="custom-dropdown-list">
-          {options.map((opt) => (
-            <div
-              key={opt.value}
-              className={
-                "custom-dropdown-item" +
-                (opt.value === value ? " selected" : "")
-              }
-              onClick={() => {
-                onChange(opt.value);
-                setOpen(false);
-              }}
-            >
-              {opt.label}
-            </div>
-          ))}
+          <span>{selected ? selected.label : placeholder || "Select"}</span>
+          <svg
+            width="18"
+            height="18"
+            style={{ marginLeft: 8, opacity: 0.7 }}
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M6 9l6 6 6-6"
+              stroke="#2563eb"
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+            />
+          </svg>
         </div>
-      )}
-    </div>
-  );
-}
+        {open && (
+          <div className="custom-dropdown-list">
+            {options.map((opt) => (
+              <div
+                key={opt.value}
+                className={
+                  "custom-dropdown-item" +
+                  (opt.value === value ? " selected" : "")
+                }
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+              >
+                {opt.label}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([]);
@@ -114,34 +126,40 @@ export default function ClassesPage() {
       setLoading(true);
       const data = await classesApi.getAllClasses();
       console.log("Classes API response:", data);
+      console.log("Current teachers:", teachers);
+      console.log("Current students:", students);
+
       const mapped = data.map((event: CalendarEvent) => {
-        const fullName = event.name || "";
-        let teacherName = "";
-        let studentName = "";
+        const teacherId = (
+          event.resourceId ??
+          event.teacher_id ??
+          event.teacherId ??
+          ""
+        ).toString();
+        const studentId = (
+          event.student_name ??
+          event.student_id ??
+          event.studentId ??
+          ""
+        ).toString();
 
-        if (fullName.includes("Trial - ")) {
-          teacherName = fullName.split("Trial - ")[1];
-          studentName = "Trial Student";
-        } else if (fullName.includes(" - ")) {
-          const parts = fullName.split(" - ");
-          teacherName = parts[0];
-          studentName = parts[1];
-        } else {
-          teacherName = fullName;
-          studentName = "";
-        }
-
-        const teacher = teachers.find((t) => t.name === teacherName);
-        const teacherId = teacher?.id || "";
-
-        const studentId = event.student_name?.toString() || "";
+        console.log("Processing event:", {
+          event,
+          teacherId,
+          studentId,
+          foundTeacher: teachers.find((t) => t.id === teacherId),
+          foundStudent: students.find((s) => s.id === studentId),
+        });
 
         return {
           id: event.id?.toString() || "",
           studentId,
           teacherId,
-          studentName,
-          teacherName,
+          studentName:
+            event.student_name_text ||
+            students.find((s) => s.id === studentId)?.name ||
+            "",
+          teacherName: teachers.find((t) => t.id === teacherId)?.name || "",
           date: event.startDate?.slice(0, 10) || event.date || "",
           status: event.class_status || event.status || "scheduled",
           time: event.startDate?.slice(11, 16) || event.time || "",
@@ -157,7 +175,7 @@ export default function ClassesPage() {
     } finally {
       setLoading(false);
     }
-  }, [teachers]);
+  }, [teachers, students]);
 
   useEffect(() => {
     fetchTeachers();
@@ -214,12 +232,12 @@ export default function ClassesPage() {
       }
 
       console.log("Processed teachers array:", arr);
-      setTeachers(
-        arr.map((t) => ({
-          id: t.id.toString(),
-          name: `${t.first_name} ${t.last_name}`,
-        }))
-      );
+      const mappedTeachers = arr.map((t) => ({
+        id: t.id.toString(),
+        name: `${t.first_name} ${t.last_name}`,
+      }));
+      console.log("Mapped teachers:", mappedTeachers);
+      setTeachers(mappedTeachers);
     } catch (err) {
       console.error("Error loading teachers:", err);
       setTeachers([]);
@@ -238,12 +256,12 @@ export default function ClassesPage() {
       console.log("Students API response:", data);
       const arr: ApiStudent[] = Array.isArray(data) ? data : data.students;
       console.log("Processed students array:", arr);
-      setStudents(
-        arr.map((s) => ({
-          id: s.id.toString(),
-          name: `${s.first_name} ${s.last_name}`,
-        }))
-      );
+      const mappedStudents = arr.map((s) => ({
+        id: s.id.toString(),
+        name: `${s.first_name} ${s.last_name}`,
+      }));
+      console.log("Mapped students:", mappedStudents);
+      setStudents(mappedStudents);
     } catch (err) {
       setStudents([]);
       console.error("Error loading students:", err);
@@ -295,18 +313,6 @@ export default function ClassesPage() {
       setFormError("Failed to add class");
       console.error(err);
     }
-  };
-
-  // Функція для пошуку імені вчителя/студента по id
-  const getTeacherName = (teacherId: string, fallback: string) => {
-    if (!teacherId) return fallback;
-    const t = teachers.find((t) => t.id === teacherId);
-    return t ? t.name : fallback;
-  };
-  const getStudentName = (studentId: string, fallback: string) => {
-    if (!studentId) return fallback;
-    const s = students.find((s) => s.id === studentId);
-    return s ? s.name : fallback;
   };
 
   // Форматування дати DD.MM.YYYY
@@ -369,11 +375,14 @@ export default function ClassesPage() {
           {classes.map((classItem) => (
             <tr key={classItem.id}>
               <td>{formatDate(classItem.date)}</td>
+              <td>{classItem.studentName}</td>
               <td>
-                {getStudentName(classItem.studentId, classItem.studentName)}
-              </td>
-              <td>
-                {getTeacherName(classItem.teacherId, classItem.teacherName)}
+                {(() => {
+                  const t = teachers.find(
+                    (tc) => tc.id === classItem.teacherId
+                  );
+                  return t ? t.name : "";
+                })()}
               </td>
               <td>
                 <span
@@ -409,6 +418,7 @@ export default function ClassesPage() {
               <div className="form-group">
                 <label htmlFor="student">Student</label>
                 <CustomDropdown
+                  label="Student"
                   options={[
                     { value: "", label: "Select student" },
                     ...students.map((s) => ({ value: s.id, label: s.name })),
@@ -421,6 +431,7 @@ export default function ClassesPage() {
               <div className="form-group">
                 <label htmlFor="teacher">Teacher</label>
                 <CustomDropdown
+                  label="Teacher"
                   options={[
                     { value: "", label: "Select teacher" },
                     ...teachers.map((t) => ({ value: t.id, label: t.name })),
@@ -433,6 +444,7 @@ export default function ClassesPage() {
               <div className="form-group">
                 <label htmlFor="status">Status</label>
                 <CustomDropdown
+                  label="Status"
                   options={[
                     { value: "Given", label: "Given" },
                     { value: "No show student", label: "No show student" },

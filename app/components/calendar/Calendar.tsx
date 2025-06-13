@@ -18,7 +18,6 @@ import "./Calendar.css";
 import { useCalendarContext } from "@/app/store/CalendarContext";
 import LessonStatusModal from "./LessonStatusModal";
 import { DateTime } from "luxon";
-import Link from "next/link";
 import { useSidebar } from "@/app/store/SidebarContext";
 import { classesApi } from "@/app/api/classes";
 
@@ -625,18 +624,43 @@ export default function Calendar() {
   const handleStatusUpdate = async (eventId: number, status: string) => {
     try {
       const event = events.find((e) => e.id === eventId);
-      if (!event) return;
+      if (!event) {
+        console.error("Event not found:", eventId);
+        return;
+      }
+
+      console.log("Updating event status:", {
+        event,
+        status,
+        studentId: event.student_id,
+        teacherId: event.resourceId,
+      });
+
+      // Find teacher name by resourceId
+      const teacher = teachers.find((t) => t.id === parseInt(event.resourceId));
+      const teacherName = teacher
+        ? `${teacher.first_name} ${teacher.last_name}`
+        : "";
+      // Use event.student_name_text or similar for student name
+      const studentName = event.student_name_text || "";
 
       await classesApi.handleCalendarStatusUpdate(
         eventId.toString(),
         status,
-        event.student_id.toString(),
-        event.resourceId
+        (event.student_id || "").toString(),
+        (event.resourceId || "").toString(),
+        studentName,
+        teacherName
       );
 
-      fetchEvents();
+      // Refresh events after status update
+      await fetchEvents();
     } catch (error) {
       console.error("Error updating class status:", error);
+      // Show error to user
+      alert(
+        error instanceof Error ? error.message : "Failed to update class status"
+      );
     }
   };
 
@@ -701,50 +725,19 @@ export default function Calendar() {
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <label
-            style={{
-              color: "#fff",
-              marginRight: 8,
-              fontWeight: 500,
-              fontSize: 15,
-            }}
-          >
-            Timezone:
-          </label>
-          <CustomTimezoneDropdown value={timezone} onChange={setTimezone} />
           <span
             style={{
-              marginLeft: 12,
               fontWeight: 600,
               fontSize: 16,
               color: "#2563eb",
               letterSpacing: 1,
-              minWidth: 120,
+              minWidth: 180,
               display: "inline-block",
             }}
           >
             {currentTime.toFormat("dd.MM.yyyy, HH:mm:ss")}
           </span>
-          <Link href="/availability">
-            <button
-              className="button"
-              style={{
-                background: "#2563eb",
-                color: "white",
-                fontWeight: 600,
-                padding: "8px 16px",
-                borderRadius: 8,
-                fontSize: 16,
-                marginLeft: 16,
-                boxShadow: "0 2px 8px rgba(37,99,235,0.08)",
-                border: "none",
-                cursor: "pointer",
-                transition: "background 0.2s",
-              }}
-            >
-              Set Availability
-            </button>
-          </Link>
+          <CustomTimezoneDropdown value={timezone} onChange={setTimezone} />
         </div>
       </div>
       <div className="calendar-wrapper">

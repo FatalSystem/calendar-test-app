@@ -73,6 +73,16 @@ const mockGroups = [
   { id: 3, name: "Group C" },
 ];
 
+// Add a helper to format date in European style
+function formatDateTimeEU(dt: string) {
+  if (!dt) return "";
+  try {
+    return DateTime.fromISO(dt).toFormat("dd.MM.yyyy, HH:mm");
+  } catch {
+    return dt;
+  }
+}
+
 export default function EventCreateForm({
   teachers,
   onClose,
@@ -184,6 +194,7 @@ export default function EventCreateForm({
   }, [classType]);
 
   useEffect(() => {
+    const repeatRef = repeatModeDropdownRef.current;
     const handleClickOutside = (event: MouseEvent) => {
       if (
         dropdownOpen &&
@@ -222,16 +233,28 @@ export default function EventCreateForm({
       }
       if (
         repeatMode === "weekly" &&
-        repeatModeDropdownRef.current &&
-        !repeatModeDropdownRef.current.contains(event.target as Node)
+        repeatRef &&
+        !repeatRef.contains(event.target as Node)
       ) {
         setRepeatMode("none");
       }
     };
 
+    // Prevent closing when clicking inside the repeat days grid
+    if (repeatMode === "weekly" && repeatRef) {
+      repeatRef.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+      });
+    }
+
     window.addEventListener("click", handleClickOutside);
     return () => {
       window.removeEventListener("click", handleClickOutside);
+      if (repeatRef) {
+        repeatRef.removeEventListener("mousedown", (e) => {
+          e.stopPropagation();
+        });
+      }
     };
   }, [
     dropdownOpen,
@@ -637,6 +660,9 @@ export default function EventCreateForm({
             onChange={(e) => setStart(e.target.value)}
             required
           />
+          <div style={{ color: "#2563eb", fontSize: 13, marginTop: 4 }}>
+            {formatDateTimeEU(start)}
+          </div>
         </div>
         <div className="flex-1">
           {classType === "group" ? (

@@ -31,6 +31,10 @@
   border: none;
   cursor: pointer;
   transition: background 0.2s;
+  min-width: unset;
+  max-width: 120px;
+  width: auto;
+  white-space: nowrap;
 }
 
 .addButton:hover {
@@ -119,11 +123,12 @@
 
 .modalContent {
   background: #fff;
-  padding: 24px;
+  padding: 16px 18px;
   border-radius: 8px;
   width: 100%;
-  max-width: 400px;
+  max-width: 340px;
   position: relative;
+  margin: 0 auto;
 }
 
 .closeButton {
@@ -149,22 +154,22 @@
 }
 
 .modalTitle {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   color: #1a1a1a;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .formGroup {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .label {
@@ -175,10 +180,10 @@
 
 .input,
 .select {
-  padding: 8px 12px;
+  padding: 6px 10px;
   border: 1px solid #ddd;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   color: #333;
   transition: border-color 0.2s;
 }

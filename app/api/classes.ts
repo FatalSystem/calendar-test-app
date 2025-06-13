@@ -85,8 +85,10 @@ export const classesApi = {
     eventId: string,
     status: string,
     studentId: string,
-    teacherId: string
-  ): Promise<Class> => {
+    teacherId: string,
+    studentName: string,
+    teacherName: string
+  ): Promise<Omit<Class, "id">> => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     
     // First update the calendar event status
@@ -97,28 +99,29 @@ export const classesApi = {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       credentials: 'include',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ 
+        event_id: parseInt(eventId),
+        class_status: status,
+        student_id: studentId ? parseInt(studentId) : null,
+        teacher_id: teacherId ? parseInt(teacherId) : null
+      }),
     });
-    if (!statusResponse.ok) throw new Error('Failed to update event status');
+    
+    if (!statusResponse.ok) {
+      const errorData = await statusResponse.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to update event status');
+    }
 
-    // Then create or update the class record
-    const classData = {
+    // Return the class data without id
+    return {
       studentId,
       teacherId,
       status,
       date: new Date().toISOString().split('T')[0],
       time: new Date().toISOString().split('T')[1].slice(0, 5),
       type: 'Regular',
-      studentName: 'Student', // Default value, should be replaced with actual student name
-      teacherName: 'Teacher'  // Default value, should be replaced with actual teacher name
+      studentName,
+      teacherName
     };
-
-    // If status is not "Cancelled", update student balance and teacher salary
-    if (status !== 'Cancelled') {
-      // These will be handled by the backend
-      // The backend will update student balance and teacher salary accordingly
-    }
-
-    return await classesApi.addClass(classData);
   }
 }; 

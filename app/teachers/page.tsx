@@ -1,10 +1,11 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { calendarApi, BackendTeacher } from "../api/calendar";
+import React, { useEffect, useState, useCallback } from "react";
+import { calendarApi } from "../api/calendar";
 import "../classes/ClassesPage.css";
 import "../teachers/TeachersPage.css";
 import { useSidebar } from "../store/SidebarContext";
 import styles from "./TeachersPage.module.css";
+import { useRouter } from "next/navigation";
 
 interface TeacherForm {
   first_name: string;
@@ -13,9 +14,34 @@ interface TeacherForm {
   trialRate: string;
   regularRate: string;
   trainingRate: string;
+  password?: string;
+}
+
+interface ApiResponse {
+  error?: string;
+  details?: {
+    msg: string;
+  };
+  data?: BackendTeacher[];
+}
+
+interface TeacherRate {
+  class_type_id: number;
+  class_type_name: string;
+  rate: string;
+}
+
+export interface BackendTeacher {
+  id: number;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email: string;
+  rates?: TeacherRate[];
 }
 
 export default function TeachersPage() {
+  const router = useRouter();
   const [teachers, setTeachers] = useState<BackendTeacher[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -26,29 +52,56 @@ export default function TeachersPage() {
     trialRate: "",
     regularRate: "",
     trainingRate: "",
+    password: "",
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const { openSidebar } = useSidebar();
+
+  const fetchTeachers = useCallback(async () => {
+    try {
+      const response = await calendarApi.getTeachers();
+      console.log("Teachers data from API:", response);
+      // Check if response is an error
+      if ((response as ApiResponse).error) {
+        const errorResponse = response as ApiResponse;
+        if (errorResponse.details?.msg === "Token expired") {
+          localStorage.removeItem("token");
+          router.push("/login");
+          return;
+        }
+        setTeachers([]);
+        return;
+      }
+      // If not error, it's an array of teachers
+      setTeachers(Array.isArray(response) ? response : []);
+    } catch (error) {
+      console.error("Error fetching teachers:", error);
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof (error as { message?: string }).message === "string" &&
+        ((error as { message?: string }).message?.includes("Token expired") ||
+          (error as { message?: string }).message?.includes("401"))
+      ) {
+        localStorage.removeItem("token");
+        router.push("/login");
+        return;
+      }
+      setTeachers([]);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    fetchTeachers();
+  }, [fetchTeachers]);
 
   useEffect(() => {
     if (localStorage.getItem("token")) {
       openSidebar();
     }
   }, [openSidebar]);
-
-  useEffect(() => {
-    fetchTeachers();
-  }, []);
-
-  const fetchTeachers = async () => {
-    try {
-      const data = await calendarApi.getTeachers();
-      setTeachers(data);
-    } catch {
-      // Handle error silently or show a notification
-    }
-  };
 
   const handleOpenModal = (teacher?: BackendTeacher) => {
     setShowModal(true);
@@ -60,16 +113,15 @@ export default function TeachersPage() {
         last_name: teacher.last_name,
         email: teacher.email,
         trialRate:
-          teacher.TeacherRates?.find(
-            (r) => r.class_type?.name === "Trial-Lesson"
-          )?.rate || "",
-        regularRate:
-          teacher.TeacherRates?.find(
-            (r) => r.class_type?.name === "Regular-Lesson"
-          )?.rate || "",
-        trainingRate:
-          teacher.TeacherRates?.find((r) => r.class_type?.name === "Training")
+          teacher.rates?.find((r: TeacherRate) => r.class_type_id === 1)
             ?.rate || "",
+        regularRate:
+          teacher.rates?.find((r: TeacherRate) => r.class_type_id === 2)
+            ?.rate || "",
+        trainingRate:
+          teacher.rates?.find((r: TeacherRate) => r.class_type_id === 3)
+            ?.rate || "",
+        password: "",
       });
     } else {
       setEditId(null);
@@ -80,6 +132,7 @@ export default function TeachersPage() {
         trialRate: "",
         regularRate: "",
         trainingRate: "",
+        password: "",
       });
     }
   };
@@ -102,7 +155,8 @@ export default function TeachersPage() {
       !form.email ||
       !form.trialRate ||
       !form.regularRate ||
-      !form.trainingRate
+      !form.trainingRate ||
+      (!editId && !form.password)
     ) {
       setFormError("Please fill in all fields");
       return;
@@ -121,8 +175,16 @@ export default function TeachersPage() {
             first_name: form.first_name,
             last_name: form.last_name,
             email: form.email,
+            password: form.password,
           }),
         });
+
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          router.push("/login");
+          return;
+        }
+
         if (!res.ok) throw new Error("Failed to create teacher");
         const teacher = await res.json();
         teacherId = teacher.id;
@@ -140,28 +202,55 @@ export default function TeachersPage() {
             email: form.email,
           }),
         });
+
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          router.push("/login");
+          return;
+        }
+
         if (!res.ok) throw new Error("Failed to update teacher");
       }
       // Set rates
+      const rates = [
+        { class_type_id: 1, rate: form.trialRate },
+        { class_type_id: 2, rate: form.regularRate },
+        { class_type_id: 3, rate: form.trainingRate },
+      ];
+
       const ratesRes = await fetch(`/api/proxy/teachers/${teacherId}/rates`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify({
-          rates: [
-            { class_type: "Trial-Lesson", rate: form.trialRate },
-            { class_type: "Regular-Lesson", rate: form.regularRate },
-            { class_type: "Training", rate: form.trainingRate },
-          ],
-        }),
+        body: JSON.stringify({ rates }),
       });
+
+      if (ratesRes.status === 401) {
+        localStorage.removeItem("token");
+        router.push("/login");
+        return;
+      }
+
       if (!ratesRes.ok) throw new Error("Failed to set rates");
       setShowModal(false);
       setEditId(null);
       fetchTeachers();
-    } catch {
+    } catch (error) {
+      console.error("Error saving teacher:", error);
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof (error as { message?: string }).message === "string" &&
+        ((error as { message?: string }).message?.includes("Token expired") ||
+          (error as { message?: string }).message?.includes("401"))
+      ) {
+        localStorage.removeItem("token");
+        router.push("/login");
+        return;
+      }
       setFormError("Failed to save teacher");
     }
   };
@@ -202,45 +291,60 @@ export default function TeachersPage() {
           </tr>
         </thead>
         <tbody>
-          {teachers.map((teacher) => (
-            <tr key={teacher.id}>
-              <td>
-                {teacher.first_name} {teacher.last_name}
-              </td>
-              <td>{teacher.email}</td>
-              <td>
-                {teacher.TeacherRates?.find(
-                  (r) => r.class_type?.name === "Trial-Lesson"
-                )?.rate || "-"}
-              </td>
-              <td>
-                {teacher.TeacherRates?.find(
-                  (r) => r.class_type?.name === "Regular-Lesson"
-                )?.rate || "-"}
-              </td>
-              <td>
-                {teacher.TeacherRates?.find(
-                  (r) => r.class_type?.name === "Training"
-                )?.rate || "-"}
-              </td>
-              <td>
-                <div className={styles.actions}>
-                  <button
-                    className={styles.editButton}
-                    onClick={() => handleOpenModal(teacher)}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    className={styles.deleteButton}
-                    onClick={() => setDeleteId(teacher.id)}
-                  >
-                    ×
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
+          {teachers.map((teacher) => {
+            console.log("Teacher rates:", teacher.rates);
+            return (
+              <tr key={teacher.id}>
+                <td>
+                  {teacher.first_name} {teacher.last_name}
+                </td>
+                <td>{teacher.email}</td>
+                <td>
+                  {(() => {
+                    const rate = teacher.rates?.find(
+                      (r: TeacherRate) => r.class_type_id === 1
+                    );
+                    console.log("Trial rate:", rate);
+                    return rate?.rate || "-";
+                  })()}
+                </td>
+                <td>
+                  {(() => {
+                    const rate = teacher.rates?.find(
+                      (r: TeacherRate) => r.class_type_id === 2
+                    );
+                    console.log("Regular rate:", rate);
+                    return rate?.rate || "-";
+                  })()}
+                </td>
+                <td>
+                  {(() => {
+                    const rate = teacher.rates?.find(
+                      (r: TeacherRate) => r.class_type_id === 3
+                    );
+                    console.log("Training rate:", rate);
+                    return rate?.rate || "-";
+                  })()}
+                </td>
+                <td>
+                  <div className={styles.actions}>
+                    <button
+                      className={styles.editButton}
+                      onClick={() => handleOpenModal(teacher)}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      className={styles.deleteButton}
+                      onClick={() => setDeleteId(teacher.id)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
@@ -287,6 +391,19 @@ export default function TeachersPage() {
                   required
                 />
               </div>
+              {!editId && (
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Password</label>
+                  <input
+                    type="password"
+                    className={styles.input}
+                    name="password"
+                    value={form.password}
+                    onChange={handleFormChange}
+                    required
+                  />
+                </div>
+              )}
               <div className={styles.formGroup}>
                 <label className={styles.label}>Trial Rate</label>
                 <input
